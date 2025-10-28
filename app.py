@@ -7,6 +7,15 @@ from pathlib import Path
 import hashlib
 import base64
 
+# Email service imports
+try:
+    from email_service import EmailService
+    from email_scheduler import EmailScheduler
+    EMAIL_ENABLED = True
+except ImportError:
+    EMAIL_ENABLED = False
+    print("Email service not available")
+
 # Page config
 st.set_page_config(
     page_title="Followup Reminder System",
@@ -24,11 +33,22 @@ ITEMS_FILE = DATA_DIR / "followup_items.json"
 # Logo path
 LOGO_PATH = Path("assets/koenig_logo.png")
 
+# Initialize email service
+if EMAIL_ENABLED:
+    email_service = EmailService()
+    # Start background scheduler
+    if 'scheduler_started' not in st.session_state:
+        email_scheduler = EmailScheduler()
+        email_scheduler.run_in_background()
+        st.session_state.scheduler_started = True
+
 # Initialize session state
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 if 'username' not in st.session_state:
     st.session_state.username = None
+if 'email_notifications' not in st.session_state:
+    st.session_state.email_notifications = True
 
 # Helper functions
 def load_logo():
