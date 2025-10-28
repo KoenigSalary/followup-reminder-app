@@ -1,9 +1,10 @@
 """
-Email Scheduler for Followup Reminder System
-Handles scheduled email sending:
+Email Scheduler for Followup Reminder System (Enhanced)
+Handles scheduled email sending with flexible recipient control:
 - Alternate day digest (every 2 days at 8 AM)
 - Weekly summary (every Monday at 8 AM)
 - Real-time deadline alerts (checks throughout the day)
+- Respects per-item recipient settings (send to responsible, CC owner, additional recipients)
 """
 
 import schedule
@@ -12,11 +13,13 @@ import json
 from datetime import datetime, timedelta
 from pathlib import Path
 from email_service import EmailService
+from email_preferences import EmailPreferences
 import threading
 
 class EmailScheduler:
     def __init__(self):
         self.email_service = EmailService()
+        self.email_preferences = EmailPreferences()
         self.data_dir = Path("data")
         self.items_file = self.data_dir / "followup_items.json"
         self.users_file = self.data_dir / "users.json"
@@ -79,6 +82,57 @@ class EmailScheduler:
         
         return days_diff >= 7
     
+    def get_item_recipients(self, item, users):
+        """
+        Get list of recipients for an item based on item settings
+        Returns dict with 'to', 'cc', and 'all_recipients' lists
+        """
+        recipients = {
+            'to': [],
+            'cc': [],
+            'all_recipients': []
+        }
+        
+        # Check user preferences first
+        owner = item.get('owner')
+        responsible = item.get('responsible')
+        
+        # Primary recipient: responsible person (if enabled)
+        if item.get('send_to_responsible', True) and responsible:
+            responsible_email = item.get('responsible_email')
+            if responsible_email:
+                # Check if responsible person wants to receive this type of email
+                if self.email_preferences.should_send_email(responsible, 'email_enabled'):
+                    recipients['to'].append(responsible_email)
+                    recipients['all_recipients'].append(responsible_email)
+        
+        # CC owner if enabled
+        if item.get('cc_owner', True) and owner:
+            owner_email = item.get('owner_email')
+            if owner_email:
+                # Check if owner wants to receive this type of email
+                if self.email_preferences.should_send_email(owner, 'email_enabled'):
+                    recipients['cc'].append(owner_email)
+                    recipients['all_recipients'].append(owner_email)
+        
+        # Additional recipients
+        additional = item.get('additional_recipients', [])
+        if additional:
+            for email in additional:
+                # Extract username from email if possible
+                # For now, just add the email
+                if email not in recipients['all_recipients']:
+                    recipients['all_recipients'].append(email)
+        
+        # Fallback: if no recipients, send to owner
+        if not recipients['all_recipients'] and owner:
+            owner_email = item.get('owner_email')
+            if owner_email:
+                recipients['to'].append(owner_email)
+                recipients['all_recipients'].append(owner_email)
+        
+        return recipients
+    
     def send_alternate_day_digest_job(self):
         """Job to send alternate day digest"""
         print(f"[{datetime.now()}] Checking alternate day digest...")
@@ -90,27 +144,49 @@ class EmailScheduler:
         items = self.load_items()
         users = self.load_users()
         
-        # Group items by user
-        for username, user_data in users.items():
-            user_email = user_data.get('email')
-            if not user_email:
+        # Group items by recipient
+        recipient_items = {}  # email -> list of items
+        
+        for item in items:
+            if item['status'] == 'Completed':
                 continue
             
-            user_items = [item for item in items if item.get('owner') == username]
+            # Get recipients for this item
+            recipients = self.get_item_recipients(item, users)
+            
+            # Add item to each recipient's list
+            for email in recipients['all_recipients']:
+                if email not in recipient_items:
+                    recipient_items[email] = []
+                recipient_items[email].append(item)
+        
+        # Send digest to each recipient
+        for email, user_items in recipient_items.items():
+            # Check if user wants alternate digest
+            # Find username from email
+            username = None
+            for uname, udata in users.items():
+                if udata.get('email') == email:
+                    username = uname
+                    break
+            
+            if username and not self.email_preferences.should_send_email(username, 'alternate_digest'):
+                print(f"⏭️ Skipping alternate digest for {email} (disabled in preferences)")
+                continue
             
             # Generate digest
-            email_data = self.email_service.generate_alternate_day_digest(user_items, user_email)
+            email_data = self.email_service.generate_alternate_day_digest(user_items, email)
             
             if email_data:
                 success = self.email_service.send_email(
-                    user_email,
+                    email,
                     email_data['subject'],
                     email_data['html_content'],
                     email_data['plain_content']
                 )
                 
                 if success:
-                    print(f"✅ Alternate digest sent to {user_email}")
+                    print(f"✅ Alternate digest sent to {email}")
         
         # Update tracking
         self.tracking['last_alternate_digest'] = datetime.now().isoformat()
@@ -127,12 +203,29 @@ class EmailScheduler:
         items = self.load_items()
         users = self.load_users()
         
-        for username, user_data in users.items():
-            user_email = user_data.get('email')
-            if not user_email:
-                continue
+        # Group items by recipient
+        recipient_items = {}
+        
+        for item in items:
+            recipients = self.get_item_recipients(item, users)
             
-            user_items = [item for item in items if item.get('owner') == username]
+            for email in recipients['all_recipients']:
+                if email not in recipient_items:
+                    recipient_items[email] = []
+                recipient_items[email].append(item)
+        
+        # Send summary to each recipient
+        for email, user_items in recipient_items.items():
+            # Find username
+            username = None
+            for uname, udata in users.items():
+                if udata.get('email') == email:
+                    username = uname
+                    break
+            
+            if username and not self.email_preferences.should_send_email(username, 'weekly_summary'):
+                print(f"⏭️ Skipping weekly summary for {email} (disabled in preferences)")
+                continue
             
             # Calculate stats
             total = len(user_items)
@@ -148,18 +241,18 @@ class EmailScheduler:
             }
             
             # Generate summary
-            email_data = self.email_service.generate_weekly_summary(user_items, user_email, stats)
+            email_data = self.email_service.generate_weekly_summary(user_items, email, stats)
             
             if email_data:
                 success = self.email_service.send_email(
-                    user_email,
+                    email,
                     email_data['subject'],
                     email_data['html_content'],
                     email_data['plain_content']
                 )
                 
                 if success:
-                    print(f"✅ Weekly summary sent to {user_email}")
+                    print(f"✅ Weekly summary sent to {email}")
         
         # Update tracking
         self.tracking['last_weekly_summary'] = datetime.now().isoformat()
@@ -190,27 +283,39 @@ class EmailScheduler:
                 days_left = (deadline - today).days
                 
                 if days_left == 4:  # Exactly 4 days before
-                    # Get user email
-                    username = item.get('owner')
-                    if username and username in users:
-                        user_email = users[username].get('email')
+                    # Get recipients for this item
+                    recipients = self.get_item_recipients(item, users)
+                    
+                    # Send to each recipient
+                    for email in recipients['all_recipients']:
+                        # Find username
+                        username = None
+                        for uname, udata in users.items():
+                            if udata.get('email') == email:
+                                username = uname
+                                break
                         
-                        if user_email:
-                            email_data = self.email_service.generate_deadline_alert(item, user_email)
+                        if username and not self.email_preferences.should_send_email(username, 'deadline_alerts'):
+                            print(f"⏭️ Skipping deadline alert for {email} (disabled in preferences)")
+                            continue
+                        
+                        email_data = self.email_service.generate_deadline_alert(item, email)
+                        
+                        if email_data:
+                            success = self.email_service.send_email(
+                                email,
+                                email_data['subject'],
+                                email_data['html_content'],
+                                email_data['plain_content']
+                            )
                             
-                            if email_data:
-                                success = self.email_service.send_email(
-                                    user_email,
-                                    email_data['subject'],
-                                    email_data['html_content'],
-                                    email_data['plain_content']
-                                )
-                                
-                                if success:
-                                    print(f"✅ Deadline alert sent for item #{item['id']}")
-                                    # Mark as alerted
-                                    self.tracking['deadline_alerts_sent'].append(item['id'])
-                                    self.save_tracking_data()
+                            if success:
+                                print(f"✅ Deadline alert sent to {email} for item #{item['id']}")
+                    
+                    # Mark as alerted (only once per item)
+                    self.tracking['deadline_alerts_sent'].append(item['id'])
+                    self.save_tracking_data()
+                    
             except Exception as e:
                 print(f"Error checking deadline for item #{item['id']}: {e}")
     
@@ -232,6 +337,7 @@ class EmailScheduler:
         print("  - Alternate day digest: Daily at 8:00 AM (every 2 days)")
         print("  - Weekly summary: Mondays at 8:00 AM")
         print("  - Deadline alerts: Every 6 hours + 8:00 AM daily")
+        print("  - Respects per-item recipient settings and user preferences")
     
     def run(self):
         """Run the scheduler"""
@@ -258,7 +364,7 @@ class EmailScheduler:
         
         thread = threading.Thread(target=background_job, daemon=True)
         thread.start()
-        print("📅 Email scheduler running in background")
+        print("📅 Email scheduler running in background (with flexible recipient control)")
 
 # Standalone script to run scheduler
 if __name__ == "__main__":
