@@ -4,86 +4,77 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
-import imaplib
-import email
+import yaml
 
-# ---------------------------------------------------------
-# CONFIGURATION
-# ---------------------------------------------------------
+# ============================================================
+# LOAD CONFIGURATION
+# ============================================================
 
-MOM_FILE = "/Users/praveenchaudhary/Library/CloudStorage/OneDrive-KoenigSolutionsLtd/MoM/MoM_Master.xlsx"
-EXPORT_FOLDER = "/Users/praveenchaudhary/Library/CloudStorage/OneDrive-KoenigSolutionsLtd/MoM/Exports/"
+with open("config.yaml", "r") as f:
+    config = yaml.safe_load(f)
 
-SMTP_SERVER = "smtp.office365.com"
-SMTP_PORT = 587
-SENDER_EMAIL = "praveen.chaudhary@koenig-solutions.com"
-SENDER_PASSWORD = "<your-app-password>"    # Outlook App Password
+logo_url = config["branding"]["logo_url"]
+MOM_FILE = config["paths"]["mom_file"]
+EXPORT_FOLDER = config["paths"]["export_folder"]
 
-def load_sheet(sheet_name):
-    """Load a sheet from the master Excel file."""
-    return pd.read_excel(MOM_FILE, sheet_name=sheet_name)
+SENDER_EMAIL = config["email"]["sender"]
+SMTP_SERVER = config["email"]["smtp_server"]
+SMTP_PORT = config["email"]["smtp_port"]
+SENDER_PASSWORD = os.getenv("EMAIL_PASS")  # From GitHub Secret
 
-def write_sheet(sheet_name, df):
-    """Write back to a specific sheet in the master file."""
-    with pd.ExcelWriter(MOM_FILE, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
-        df.to_excel(writer, index=False, sheet_name=sheet_name)
+REMINDER_DAYS = config["reminders"]["days_before_deadline"]
+REMINDER_TIMES = config["reminders"]["send_times"]
 
-def add_task(meeting_id, title, details, department, assigned_to, created_by, deadline):
-    tasks = load_sheet("Tasks")
-    new_task_id = tasks["TaskID"].max() + 1 if not tasks.empty else 1
-    
-    new_row = {
-        "TaskID": new_task_id,
-        "MeetingID": meeting_id,
-        "Title": title,
-        "Details": details,
-        "Department": department,
-        "AssignedTo": assigned_to,
-        "CreatedBy": created_by,
-        "CreatedDate": date.today(),
-        "Deadline": deadline,
-        "Status": "pending",
-        "LastUpdateDate": None,
-        "LastUpdateBy": None
-    }
-    
-    tasks = tasks.append(new_row, ignore_index=True)
-    write_sheet("Tasks", tasks)
-    log_action(new_task_id, "created", created_by)
-    
-    return new_task_id
+ESC_L1 = config["escalation"]["level1_after_days"]
+ESC_L2 = config["escalation"]["level2_after_days"]
+ESC_LB = config["escalation"]["boss_mom_after_days"]
+EA_DEPT = config["escalation"]["ea_department"]
+BOSS_EMAIL = config["escalation"]["boss_email"]
 
-def update_task_status(task_id, new_status, user_id):
-    tasks = load_sheet("Tasks")
-    idx = tasks.index[tasks["TaskID"] == task_id][0]
-    
-    tasks.loc[idx, "Status"] = new_status
-    tasks.loc[idx, "LastUpdateDate"] = datetime.now()
-    tasks.loc[idx, "LastUpdateBy"] = user_id
-    
-    write_sheet("Tasks", tasks)
-    log_action(task_id, new_status, user_id)
+BOSS_MEETING_ID = config["meetings"]["boss_meeting_id"]
 
-def log_action(task_id, action, actor):
+# ============================================================
+# HELPER FUNCTIONS
+# ============================================================
+
+def load_sheet(sheet):
+    return pd.read_excel(MOM_FILE, sheet_name=sheet)
+
+def write_sheet(sheet, df):
+    with pd.ExcelWriter(MOM_FILE, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
+        df.to_excel(writer, index=False, sheet_name=sheet)
+
+def log(task_id, action, actor):
     logs = load_sheet("Logs")
     new_id = logs["LogID"].max() + 1 if not logs.empty else 1
-    
-    new_row = {
+
+    row = {
         "LogID": new_id,
         "TaskID": task_id,
         "Action": action,
         "Timestamp": datetime.now(),
         "Actor": actor
     }
-    
-    logs = logs.append(new_row, ignore_index=True)
+
+    logs = pd.concat([logs, pd.DataFrame([row])], ignore_index=True)
     write_sheet("Logs", logs)
 
-def send_email(to_email, subject, body):
-    msg = MIMEMultipart()
+# ============================================================
+# EMAIL SENDER WITH LOGO HEADER
+# ============================================================
+
+def send_email(to_email, subject, content_html):
+    msg = MIMEMultipart("alternative")
     msg["From"] = SENDER_EMAIL
     msg["To"] = to_email
     msg["Subject"] = subject
+
+    body = f"""
+    <div style='text-align:center; margin-bottom:20px;'>
+        <img src='{logo_url}' width='130' />
+    </div>
+    {content_html}
+    """
 
     msg.attach(MIMEText(body, "html"))
 
@@ -92,298 +83,157 @@ def send_email(to_email, subject, body):
         server.login(SENDER_EMAIL, SENDER_PASSWORD)
         server.send_message(msg)
 
-def follow_up_tasks():
+# ============================================================
+# TASK MANAGEMENT
+# ============================================================
+
+def add_task(meeting_id, title, details, department, assigned_to, created_by, deadline):
+    tasks = load_sheet("Tasks")
+    new_id = tasks["TaskID"].max() + 1 if not tasks.empty else 1
+
+    row = {
+        "TaskID": new_id,
+        "MeetingID": meeting_id,
+        "Title": title,
+        "Details": details,
+               "Department": department,
+        "AssignedTo": assigned_to,
+        "CreatedBy": created_by,
+        "CreatedDate": date.today(),
+        "Deadline": deadline,
+        "Status": "pending",
+        "LastUpdateDate": None,
+        "LastUpdateBy": None
+    }
+
+    tasks = pd.concat([tasks, pd.DataFrame([row])], ignore_index=True)
+    write_sheet("Tasks", tasks)
+
+    log(new_id, "created", created_by)
+    return new_id
+
+def update_task_status(task_id, status, user):
+    tasks = load_sheet("Tasks")
+    idx = tasks.index[tasks["TaskID"] == task_id][0]
+
+    tasks.loc[idx, "Status"] = status
+    tasks.loc[idx, "LastUpdateDate"] = datetime.now()
+    tasks.loc[idx, "LastUpdateBy"] = user
+
+    write_sheet("Tasks", tasks)
+    log(task_id, status, user)
+
+# ============================================================
+# FOLLOW-UP REMINDERS
+# ============================================================
+
+def send_reminders():
     tasks = load_sheet("Tasks")
     users = load_sheet("Users")
-    
+
     today = date.today()
-    
-    for _, task in tasks.iterrows():
-        if task["Status"] != "pending":
+
+    for _, t in tasks.iterrows():
+
+        if t["Status"] != "pending":
             continue
-        
-        assigned_to = int(task["AssignedTo"])
-        user = users[users["UserID"] == assigned_to].iloc[0]
-        email = user["Email"]
-        
-        days_left = (task["Deadline"] - today).days
-        
-        if days_left < 0:
-            subject = f"OVERDUE: Task {task['Title']}"
-            body = f"""
-            <p>Dear {user['Name']},</p>
-            <p>Your task <b>{task['Title']}</b> is overdue.</p>
-            <p>Deadline: {task['Deadline']}</p>
-            <p>Please update immediately.</p>
-            """
-            send_email(email, subject, body)
-            log_action(task["TaskID"], "reminder_sent", "System")
-        
-        elif days_left <= 2:
-            subject = f"Reminder: Task {task['Title']} (due soon)"
-            body = f"""
-            <p>Dear {user['Name']},</p>
-            <p>Your task <b>{task['Title']}</b> is due in {days_left} days.</p>
-            """
-            send_email(email, subject, body)
-            log_action(task["TaskID"], "reminder_sent", "System")
 
-def export_pending_tasks():
-    tasks = load_sheet("Tasks")
-    users = load_sheet("Users")
-    
-    tasks = tasks[tasks["Status"] == "pending"]
-    tasks = tasks.merge(users, left_on="AssignedTo", right_on="UserID", how="left")
-    
-    file_path = os.path.join(EXPORT_FOLDER, f"Pending_{date.today()}.xlsx")
-    tasks.to_excel(file_path, index=False)
-    
-    return file_path
+        days_left = (t["Deadline"] - today).days
 
-def read_incoming_emails():
-    """Connects to Outlook inbox and fetches unread task updates."""
-    
-    mail = imaplib.IMAP4_SSL("outlook.office365.com")
-    mail.login(SENDER_EMAIL, SENDER_PASSWORD)
-    mail.select("inbox")
+        if days_left > REMINDER_DAYS:
+            continue
 
-    status, messages = mail.search(None, '(UNSEEN)')
-    mail_ids = messages[0].split()
+        user = users[users["UserID"] == t["AssignedTo"]].iloc[0]
 
-    for msg_id in mail_ids:
-        status, msg_data = mail.fetch(msg_id, "(RFC822)")
-        msg = email.message_from_bytes(msg_data[0][1])
-
-        from_email = email.utils.parseaddr(msg["From"])[1]
-        subject = msg["Subject"]
-        
-        # Extract body
-        if msg.is_multipart():
-            for part in msg.walk():
-                if part.get_content_type() == "text/plain":
-                    body = part.get_payload(decode=True).decode()
-        else:
-            body = msg.get_payload(decode=True).decode()
-
-        process_task_update(from_email, subject, body)
-
-    mail.logout()
-
-def interpret_status(body):
-    body = body.lower()
-
-    if "done" in body or "completed" in body:
-        return "completed"
-    if "in progress" in body or "working" in body:
-        return "in-progress"
-    if "more time" in body or "extension" in body:
-        return "delay"
-    if "not my task" in body or "wrong person" in body:
-        return "wrong-assignee"
-
-    return "unknown"
-
-def process_task_update(sender_email, subject, body):
-    users = load_sheet("Users")
-    tasks = load_sheet("Tasks")
-
-    # Identify user
-    user_row = users[users["Email"] == sender_email]
-    if user_row.empty:
-        return
-    
-    user_id = int(user_row["UserID"].iloc[0])
-
-    # Identify Task ID from subject
-    task_id = None
-    for word in subject.split():
-        if word.isdigit():
-            task_id = int(word)
-            break
-
-    if task_id is None:
-        return
-
-    # Interpret status from email body
-    status = interpret_status(body)
-
-    if status == "completed":
-        update_task_status(task_id, "completed", user_id)
-        send_auto_reply(sender_email, task_id, "completed")
-
-    elif status == "in-progress":
-        update_task_status(task_id, "in-progress", user_id)
-        send_auto_reply(sender_email, task_id, "in-progress")
-
-    elif status == "delay":
-        send_auto_reply(sender_email, task_id, "extension-requested")
-
-    elif status == "wrong-assignee":
-        send_auto_reply(sender_email, task_id, "reassignment-required")
-
-    else:
-        send_auto_reply(sender_email, task_id, "not-understood")
-
-def send_auto_reply(to_email, task_id, status_type):
-
-    if status_type == "completed":
-        subject = f"Task {task_id} marked as Completed ✔"
+        subject = f"Reminder: Task {t['TaskID']} – {t['Title']}"
         body = f"""
-        <p>Thank you!</p>
-        <p>Task <b>{task_id}</b> has been marked as <b>Completed</b>.</p>
+        <p>Dear {user['Name']},</p>
+        <p>This is a reminder that your task:</p>
+        <p><b>{t['Title']}</b></p>
+        <p>Deadline: <b>{t['Deadline']}</b></p>
         """
 
-    elif status_type == "in-progress":
-        subject = f"Task {task_id} marked as In Progress"
-        body = f"""
-        <p>Update received.</p>
-        <p>Task <b>{task_id}</b> recorded as <b>In Progress</b>.</p>
-        """
+        send_email(user["Email"], subject, body)
+        log(t["TaskID"], "reminder_sent", "System")
 
-    elif status_type == "extension-requested":
-        subject = f"Request noted for Task {task_id}"
-        body = f"""
-        <p>Your extension request for Task <b>{task_id}</b> has been noted.</p>
-        <p>The admin will review it shortly.</p>
-        """
-
-    elif status_type == "reassignment-required":
-        subject = f"Reassignment requested for Task {task_id}"
-        body = f"""
-        <p>You've indicated Task <b>{task_id}</b> does not belong to you.</p>
-        <p>The task owner will review and reassign.</p>
-        """
-
-    else:
-        subject = f"Task {task_id} – Unable to understand update"
-        body = f"""
-        <p>Your update for Task <b>{task_id}</b> could not be interpreted.</p>
-        <p>Please reply using keywords: done / in progress / need more time.</p>
-        """
-
-    send_email(to_email, subject, body)
-
-if __name__ == "__main__":
-    print("Running MoM Automated Agent…")
-
-    read_incoming_emails()      # Process updates from team
-    follow_up_tasks()           # Send reminders
-    export_pending_tasks()      # Save daily Excel report
-
-    print("Completed.")
+# ============================================================
+# ESCALATION ENGINE
+# ============================================================
 
 def escalate_tasks():
     tasks = load_sheet("Tasks")
     users = load_sheet("Users")
-    escalations = load_sheet("Escalations")
 
     today = date.today()
 
-    for _, task in tasks.iterrows():
+    for _, t in tasks.iterrows():
 
-        if task["Status"] == "completed":
+        if t["Status"] == "completed":
             continue
 
-        days_overdue = (today - task["Deadline"]).days
+        days_over = (today - t["Deadline"]).days
 
-        # Skip tasks that are not overdue
-        if days_overdue < 2:
+        if days_over < ESC_L1:
             continue
 
-        # Find assigned user
-        assigned_user = users[users["UserID"] == task["AssignedTo"]].iloc[0]
-        assigned_email = assigned_user["Email"]
-        role = assigned_user["Role"]
-        dept = assigned_user["Department"]
+        assigned = users[users["UserID"] == t["AssignedTo"]].iloc[0]
+        dept = assigned["Department"]
+        role = assigned["Role"]
 
-        task_id = task["TaskID"]
+        # Level 1: Executive → Manager
+        if role == "Executive" and days_over >= ESC_L1:
+            manager = users[(users["Department"] == dept) & (users["Role"] == "Manager")].iloc[0]
 
-        # ---------------------------------------------------------
-        # LEVEL 1 → Executive → escalate to Manager
-        # ---------------------------------------------------------
-        if role == "Executive" and days_overdue >= 2:
-            manager = users[(users["Department"] == dept) & (users["Role"] == "Manager")]
-            if not manager.empty:
-                manager_email = manager.iloc[0]["Email"]
+            send_email(
+                manager["Email"],
+                f"ESCALATION: Task {t['TaskID']} overdue",
+                f"<p>Executive has not completed the task <b>{t['Title']}</b>.</p>"
+            )
+            log(t["TaskID"], "escalated_L1", "System")
+            continue
 
-                subject = f"ESCALATION: Task {task_id} overdue (Executive)"
-                body = f"""
-                <p>Dear {manager.iloc[0]['Name']},</p>
-                <p>The following task is overdue by {days_overdue} days:</p>
-                <p><b>{task['Title']}</b></p>
-                <p>Please intervene and follow up with the executive.</p>
-                """
+        # Level 2: Manager → EA
+        if role == "Manager" and days_over >= ESC_L2:
+            ea = users[users["Department"] == EA_DEPT].iloc[0]
 
-                send_email(manager_email, subject, body)
+            send_email(
+                ea["Email"],
+                f"ESCALATION: Manager-level Task {t['TaskID']} overdue",
+                f"<p>Manager has not completed the task <b>{t['Title']}</b>.</p>"
+            )
+            log(t["TaskID"], "escalated_L2", "System")
+            continue
 
-                add_escalation(task_id, manager_email, "Executive overdue escalation")
+        # Level 3: Boss-MoM escalation
+        if t["MeetingID"] == BOSS_MEETING_ID and days_over >= ESC_LB:
+            send_email(
+                BOSS_EMAIL,
+                f"URGENT: Boss-MoM Task {t['TaskID']} overdue",
+                f"<p>Task <b>{t['Title']}</b> is pending beyond allowed time.</p>"
+            )
+            log(t["TaskID"], "escalated_boss", "System")
 
-                continue
+# ============================================================
+# EXPORT PENDING TASK REPORT
+# ============================================================
 
-        # ---------------------------------------------------------
-        # LEVEL 2 → Manager → escalate to EA Office
-        # ---------------------------------------------------------
-        if role == "Manager" and days_overdue >= 4:
+def export_pending():
+    tasks = load_sheet("Tasks")
+    pending = tasks[tasks["Status"] == "pending"]
 
-            ea = users[users["Department"] == "EA-Director’s Office"]
-            if not ea.empty:
-                ea_email = ea.iloc[0]["Email"]
+    fname = f"{EXPORT_FOLDER}/Pending_{date.today()}.xlsx"
+    pending.to_excel(fname, index=False)
+    return fname
 
-                subject = f"ESCALATION: Task {task_id} overdue (Manager)"
-                body = f"""
-                <p>EA Team,</p>
-                <p>Manager has not resolved the following overdue task:</p>
-                <p><b>{task['Title']}</b></p>
-                <p>Overdue by {days_overdue} days.</p>
-                """
-
-                send_email(ea_email, subject, body)
-
-                add_escalation(task_id, ea_email, "Manager overdue escalation")
-
-                continue
-
-        # ---------------------------------------------------------
-        # LEVEL 3 → EA → escalate to BOSS (Boss-MoM only)
-        # ---------------------------------------------------------
-        if task["MeetingID"] == 1:  # Boss MoM – dedicate MeetingID
-            if days_overdue >= 1:
-                boss_email = "boss@koenig-solutions.com"  # Update or parameterize
-
-                subject = f"URGENT: Boss-MoM Task {task_id} overdue"
-                body = f"""
-                <p>Dear Sir,</p>
-                <p>This Boss-MoM task is overdue:</p>
-                <p><b>{task['Title']}</b></p>
-                <p>Assigned to: {assigned_user['Name']}</p>
-                """
-
-                send_email(boss_email, subject, body)
-
-                add_escalation(task_id, boss_email, "Boss MoM escalation")
-
-def add_escalation(task_id, escalated_to_email, reason):
-    esc = load_sheet("Escalations")
-    new_id = esc["EscID"].max() + 1 if not esc.empty else 1
-
-    new_row = {
-        "EscID": new_id,
-        "TaskID": task_id,
-        "EscalatedTo": escalated_to_email,
-        "EscalatedDate": date.today(),
-        "Reason": reason
-    }
-
-    esc = pd.concat([esc, pd.DataFrame([new_row])], ignore_index=True)
-    write_sheet("Escalations", esc)
+# ============================================================
+# MAIN EXECUTION
+# ============================================================
 
 if __name__ == "__main__":
-    print("Running MoM Automation…")
+    print("Running MoM Automations...")
 
-    read_incoming_emails()
-    follow_up_tasks()
+    send_reminders()
     escalate_tasks()
-    export_pending_tasks()
+    export_pending()
 
-    print("Done.")
-
+    print("Completed MoM Automation Run.")
