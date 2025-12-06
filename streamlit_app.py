@@ -2,6 +2,34 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 import yaml
+from pdf_user_score import generate_user_score_pdf
+from pdf_department_summary import generate_department_summary
+
+st.markdown("""
+<style>
+/* Global background */
+body {
+    background-color: #111 !important;
+    color: white !important;
+}
+
+/* Title color */
+h2, h3, h4 {
+    color: #e34234 !important;  /* Koenig Red */
+}
+
+/* Sidebar */
+[data-testid="stSidebar"] {
+    background-color: #202020 !important;
+    color: white !important;
+}
+
+/* DataFrame style */
+[data-testid="stDataFrame"] table {
+    color: white !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ============================================================
 # LOAD CONFIGURATION
@@ -22,8 +50,12 @@ MOM_FILE = config["paths"]["mom_file"]
 st.set_page_config(
     page_title=dashboard_title,
     page_icon=logo_url,
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
+st.markdown("""
+<meta name="viewport" content="width=device-width, initial-scale=1">
+""", unsafe_allow_html=True)
 
 # CENTERED LOGO HEADER
 col1, col2, col3 = st.columns([1, 2, 1])
@@ -39,19 +71,84 @@ st.sidebar.image(logo_url, width=140)
 st.sidebar.markdown("### Koenig Solutions – MoM Follow-Up System")
 
 # ============================================================
-# LOAD EXCEL sheets
+# LOAD EXCEL sheets (with auto-clean + auto-create + sample data)
 # ============================================================
 
-@st.cache_data
+import os
+
+def ensure_excel_exists():
+    """Auto-create Excel with correct structure + sample data."""
+    if not os.path.exists(MOM_FILE):
+        st.warning("MoM_Master.xlsx not found — creating a new one with sample data...")
+
+        sample_users = pd.DataFrame([
+            {"UserID": 1, "Name": "Praveen Chaudhary", "Email": "praveen.chaudhary@koenig-solutions.com",
+             "Department": "EA-Director’s Office", "Role": "Manager"},
+            {"UserID": 2, "Name": "Test Executive", "Email": "praveen.chaudhary@koenig-solutions.com",
+             "Department": "Accounts/Finance", "Role": "Executive"},
+        ])
+
+        sample_tasks = pd.DataFrame([
+            {
+                "TaskID": 1, "MeetingID": 1, "Title": "Sample Task 1", "Details": "Setup MoM Testing",
+                "Department": "EA-Director’s Office", "AssignedTo": 1,
+                "CreatedBy": 1, "CreatedDate": date.today(),
+                "Deadline": date.today(), "Status": "pending",
+                "LastUpdateDate": "", "LastUpdateBy": ""
+            },
+            {
+                "TaskID": 2, "MeetingID": 1, "Title": "Sample Pending Task",
+                "Details": "This is a demo", "Department": "Accounts/Finance",
+                "AssignedTo": 2, "CreatedBy": 1, "CreatedDate": date.today(),
+                "Deadline": date.today(), "Status": "completed",
+                "LastUpdateDate": "", "LastUpdateBy": ""
+            }
+        ])
+
+        sample_meetings = pd.DataFrame([{"MeetingID": 1, "Title": "Boss Review Meeting"}])
+        sample_logs = pd.DataFrame([{"LogID": 1, "TaskID": 1, "Action": "created", "Timestamp": date.today(), "Actor": "System"}])
+        sample_esc = pd.DataFrame([{"EscID": 1, "TaskID": 1, "Level": 1, "Date": date.today()}])
+
+        with pd.ExcelWriter(MOM_FILE, engine="openpyxl") as writer:
+            sample_users.to_excel(writer, index=False, sheet_name="Users")
+            sample_tasks.to_excel(writer, index=False, sheet_name="Tasks")
+            sample_meetings.to_excel(writer, index=False, sheet_name="Meetings")
+            sample_logs.to_excel(writer, index=False, sheet_name="Logs")
+            sample_esc.to_excel(writer, index=False, sheet_name="Escalations")
+
 def load_sheets():
+    ensure_excel_exists()  # Auto-create + sample data
+
     users = pd.read_excel(MOM_FILE, sheet_name="Users")
     tasks = pd.read_excel(MOM_FILE, sheet_name="Tasks")
     meetings = pd.read_excel(MOM_FILE, sheet_name="Meetings")
     logs = pd.read_excel(MOM_FILE, sheet_name="Logs")
     esc = pd.read_excel(MOM_FILE, sheet_name="Escalations")
+
+    # Auto strip spaces
+    for df in [users, tasks, meetings, logs, esc]:
+        df.columns = df.columns.str.strip()
+
     return users, tasks, meetings, logs, esc
 
-users, tasks, meetings, logs, esc = load_sheets()
+
+# Load into memory
+try:
+    users, tasks, meetings, logs, esc = load_sheets()
+
+    # CLEAN COLUMN SPACES
+    tasks.columns = tasks.columns.str.strip()
+    users.columns = users.columns.str.strip()
+    meetings.columns = meetings.columns.str.strip()
+    logs.columns = logs.columns.str.strip()
+    esc.columns = esc.columns.str.strip()
+
+    # FIX: Convert Deadline to date
+    tasks["Deadline"] = pd.to_datetime(tasks["Deadline"], errors="coerce").dt.date
+
+except Exception as e:
+    st.error(f"❌ Failed to load Excel data: {e}")
+    st.stop()
 
 # ============================================================
 # TABS LAYOUT
@@ -239,4 +336,108 @@ with tab7:
                 )
 
             st.success("Extracted tasks saved successfully!")
+
+tab8 = st.tabs(["👤 Executive Dashboard"])[0]
+
+with tab8:
+    st.header("👤 Executive Dashboard")
+
+    executive_name = st.selectbox("Select Executive", users["Name"])
+
+    user_id = int(users[users["Name"] == executive_name]["UserID"].iloc[0])
+
+    my_tasks = tasks[tasks["AssignedTo"] == user_id]
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Assigned Tasks", len(my_tasks))
+    col2.metric("Completed", len(my_tasks[my_tasks["Status"] == "completed"]))
+    col3.metric("Overdue", len(my_tasks[(my_tasks["Deadline"] < date.today()) & (my_tasks["Status"] == "pending")]))
+
+    st.subheader("My Pending Tasks")
+    st.dataframe(my_tasks[my_tasks["Status"] == "pending"])
+
+tab9 = st.tabs(["🧑‍💼 Manager Dashboard"])[0]
+
+with tab9:
+    st.header("🧑‍💼 Manager Dashboard")
+
+    manager_name = st.selectbox("Select Manager", users[users["Role"] == "Manager"]["Name"])
+
+    manager_id = int(users[users["Name"] == manager_name]["UserID"].iloc[0])
+    manager_dept = users[users["UserID"] == manager_id]["Department"].iloc[0]
+
+    dept_users = users[users["Department"] == manager_dept]
+    dept_user_ids = dept_users["UserID"].tolist()
+
+    dept_tasks = tasks[tasks["AssignedTo"].isin(dept_user_ids)]
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Team Size", len(dept_users))
+    col2.metric("Team Tasks", len(dept_tasks))
+    col3.metric("Completed", len(dept_tasks[dept_tasks["Status"] == "completed"]))
+    col4.metric("Overdue", len(dept_tasks[(dept_tasks["Deadline"] < date.today()) & (dept_tasks["Status"] == "pending")]))
+
+    st.subheader("Department Task Table")
+    st.dataframe(dept_tasks)
+
+tab10 = st.tabs(["📈 Performance Scorecard"])[0]
+
+with tab10:
+    st.header("📈 Executive MoM Scorecard")
+
+    scores = []
+
+    for _, user in users.iterrows():
+        uid = user["UserID"]
+        name = user["Name"]
+
+        user_tasks = tasks[tasks["AssignedTo"] == uid]
+
+        if len(user_tasks) == 0:
+            continue
+
+        completion_rate = len(user_tasks[user_tasks["Status"] == "completed"]) / len(user_tasks) * 100
+        overdue = len(user_tasks[(user_tasks["Deadline"] < date.today()) & (user_tasks["Status"] == "pending")])
+        score = max(0, 100 - overdue * 5) * (completion_rate / 100)
+
+        scores.append({
+            "Name": name,
+            "Department": user["Department"],
+            "Score": round(score, 2),
+            "Tasks": len(user_tasks),
+            "Overdue": overdue
+        })
+
+    st.dataframe(pd.DataFrame(scores))
+
+st.subheader("📄 Download User Performance Score PDF")
+
+user_name = st.selectbox("Select Executive", users["Name"])
+
+if st.button("Generate User Score PDF"):
+    pdf_path = generate_user_score_pdf(user_name)
+    with open(pdf_path, "rb") as f:
+        st.download_button(
+            label="📥 Download PDF",
+            data=f,
+            mime="application/pdf",
+            file_name="UserScore.pdf"
+        )
+
+st.subheader("📄 Download Department Summary PDF")
+
+dept_name = st.selectbox("Select Department", users["Department"].unique())
+
+if st.button("Generate Department PDF"):
+    pdf_path = generate_department_summary(dept_name)
+    with open(pdf_path, "rb") as f:
+        st.download_button(
+            label="📥 Download PDF",
+            data=f,
+            mime="application/pdf",
+            file_name="DepartmentSummary.pdf"
+        )
+
+
+
 

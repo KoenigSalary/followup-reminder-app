@@ -4,3 +4,5 @@ python-dateutil
 requests
 streamlit
 openai
+reportlab
+matplotlib
