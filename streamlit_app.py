@@ -7,6 +7,7 @@ from pdf_user_score import generate_user_score_pdf
 from pdf_department_summary import generate_department_summary
 from monthly_summary_pdf import generate_monthly_pdf
 from PIL import Image
+from mom_agent import add_task
 
 # Must be the very first Streamlit command
 st.set_page_config(
