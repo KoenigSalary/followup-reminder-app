@@ -1,11 +1,5 @@
-openpyxl
-python-dateutil
-requests
-openai
+pyyaml
+pandas
+streamlit
 reportlab
 matplotlib
-streamlit
-pandas
-pyyaml
-pillow
-
