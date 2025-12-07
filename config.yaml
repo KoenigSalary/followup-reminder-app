@@ -14,9 +14,8 @@ branding:
 # FILE PATHS (OneDrive Excel Storage)
 # ------------------------------------------------------------
 paths:
-  mom_file: "data/MoM_Master.xlsx"
-  mom_file: "MoM_Master.xlsx"
-  export_folder: "Exports"
+  mom_file: "/Users/praveenchaudhary/Library/CloudStorage/OneDrive-KoenigSolutionsLtd/MoM/MoM_Master.xlsx"
+  export_folder: "/Users/praveenchaudhary/Library/CloudStorage/OneDrive-KoenigSolutionsLtd/MoM/Exports"
 
 # ------------------------------------------------------------
 # EMAIL SETTINGS (Sender Only)
