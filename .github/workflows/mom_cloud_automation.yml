@@ -1,0 +1,41 @@
+name: MoM Cloud Automation
+
+on:
+  schedule:
+    - cron: "30 3 * * *"   # 9:00 AM IST daily
+  workflow_dispatch:
+
+jobs:
+  run-mom-agent:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: |
+          pip install pandas openpyxl python-dotenv pyyaml
+
+      - name: Run Daily Summary
+        env:
+          SENDER: ${{ secrets.SENDER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+        run: |
+          python daily_summary.py
+
+      - name: Run Follow-Up Engine
+        env:
+          SENDER: ${{ secrets.SENDER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+        run: |
+          python followup_engine.py
