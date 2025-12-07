@@ -14,7 +14,7 @@ branding:
 # FILE PATHS (OneDrive Excel Storage)
 # ------------------------------------------------------------
 paths:
-  mom_file: "MoM_Master.xlsx"
+  mom_file: "data/MoM_Master.xlsx"
   export_folder: "Exports"
 
 # ------------------------------------------------------------
