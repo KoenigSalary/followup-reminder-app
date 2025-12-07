@@ -1,0 +1,70 @@
+# ============================================================
+#  Koenig MoM Automation Agent - Configuration File
+# ============================================================
+
+# ------------------------------------------------------------
+# BRANDING (Logo, Title)
+# ------------------------------------------------------------
+branding:
+  logo_url: "https://raw.githubusercontent.com/KoenigSalary/followup-reminder-app/54763fec279b95518f17881aedc7099f130dfbcd/koenig_logo.png"
+  dashboard_title: "Koenig MoM Automation Dashboard"
+  email_banner_title: "Koenig MoM Follow-Up System"
+
+# ------------------------------------------------------------
+# FILE PATHS (OneDrive Excel Storage)
+# ------------------------------------------------------------
+paths:
+  mom_file: "/Users/praveenchaudhary/Library/CloudStorage/OneDrive-KoenigSolutionsLtd/MoM/MoM_Master.xlsx"
+  export_folder: "/Users/praveenchaudhary/Library/CloudStorage/OneDrive-KoenigSolutionsLtd/MoM/Exports"
+
+# ------------------------------------------------------------
+# EMAIL SETTINGS (Sender Only)
+# ------------------------------------------------------------
+email:
+  sender: "praveen.chaudhary@koenig-solutions.com"
+  smtp_server: "smtp.office365.com"
+  smtp_port: 587
+  # Password is stored securely in GitHub Secrets → EMAIL_PASS
+
+# ------------------------------------------------------------
+# REMINDER SETTINGS
+# ------------------------------------------------------------
+reminders:
+  days_before_deadline: 2      # Start reminders X days before
+  send_times:
+    - "09:30"                   # Morning reminder
+    - "13:00"                   # Afternoon reminder
+    - "18:00"                   # Evening reminder
+
+# ------------------------------------------------------------
+# ESCALATION RULES
+# ------------------------------------------------------------
+escalation:
+  level1_after_days: 2          # Executive → Manager
+  level2_after_days: 4          # Manager → EA Office
+  boss_mom_after_days: 1        # Boss MoM → escalate after 1 day
+  ea_department: "EA-Director’s Office"
+  boss_email: "boss@koenig-solutions.com"
+
+# ------------------------------------------------------------
+# MEETING SETTINGS
+# ------------------------------------------------------------
+meetings:
+  boss_meeting_id: 1            # MeetingID for Boss-MoM tracking
+
+# ------------------------------------------------------------
+# AI SETTINGS (For MoM Extractor)
+# ------------------------------------------------------------
+ai:
+  enabled: true
+  model: "gpt-4o-mini"
+  temperature: 0.0
+  # API key stored in GitHub Secret → OPENAI_API_KEY
+
+# ------------------------------------------------------------
+# LOGGING
+# ------------------------------------------------------------
+logging:
+  enabled: true
+  file: "logs/mom_agent.log"
+  level: "INFO"
