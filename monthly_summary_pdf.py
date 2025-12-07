@@ -20,7 +20,6 @@ with open(config_path, "r") as f:
 logo_url = config["branding"]["logo_url"]
 MOM_FILE = config["paths"]["mom_file"]
 
-
 # ---------------------------------------------------------
 # Load Excel data
 # ---------------------------------------------------------
@@ -34,7 +33,6 @@ def load_data():
 
     return tasks, users
 
-
 # ---------------------------------------------------------
 # Get month start → today date range
 # ---------------------------------------------------------
@@ -42,7 +40,6 @@ def get_month_range():
     today = date.today()
     start = date(today.year, today.month, 1)
     return start, today
-
 
 # ---------------------------------------------------------
 # Draw section title
@@ -53,14 +50,12 @@ def section_title(c, text, y):
     c.drawString(40, y, text)
     return y - 25
 
-
 # ---------------------------------------------------------
 # Draw chart and insert into PDF
 # ---------------------------------------------------------
 def add_chart_to_pdf(c, chart_path, y):
     c.drawImage(chart_path, 50, y - 180, width=500, height=180)
     return y - 200
-
 
 # ---------------------------------------------------------
 # MAIN PDF GENERATOR

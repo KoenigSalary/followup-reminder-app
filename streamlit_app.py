@@ -39,24 +39,31 @@ body {
     background-color: #111 !important;
     color: white !important;
 }
+
+/* ✅ All Headings in Koenig Blue */
 h1, h2, h3, h4 {
-    color: #e34234 !important;
+    color: #1f77d0 !important;
 }
 
-/* Sidebar - lighter for better visibility */
+/* ✅ Sidebar - clean professional dark */
 [data-testid="stSidebar"] {
     background-color: #2b2b2b !important;
     color: white !important;
 }
 
-/* Sidebar text fix */
+/* ✅ Sidebar text */
 [data-testid="stSidebar"] * {
     color: white !important;
 }
 
-/* Dataframe text */
+/* ✅ Dataframe text */
 [data-testid="stDataFrame"] table {
     color: white !important;
+}
+
+/* ✅ Tabs highlight */
+button[data-baseweb="tab"] {
+    font-weight: 600;
 }
 </style>
 """, unsafe_allow_html=True)

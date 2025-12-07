@@ -1,6 +1,7 @@
-pyyaml
-pandas
 streamlit
-matplotlib
+pandas
+pyyaml
 reportlab
+matplotlib
+python-dotenv
 openpyxl

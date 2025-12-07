@@ -17,14 +17,16 @@ paths:
   mom_file: "data/MoM_Master.xlsx"
   mom_file: "MoM_Master.xlsx"
   export_folder: "Exports"
+
 # ------------------------------------------------------------
 # EMAIL SETTINGS (Sender Only)
 # ------------------------------------------------------------
 email:
   sender: "praveen.chaudhary@koenig-solutions.com"
+  test_mode: true
+  test_email: "praveen.chaudhary@koenig-solutions.com"
   smtp_server: "smtp.office365.com"
   smtp_port: 587
-  # Password is stored securely in GitHub Secrets → EMAIL_PASS
 
 # ------------------------------------------------------------
 # REMINDER SETTINGS
