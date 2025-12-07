@@ -1,8 +1,11 @@
-pandas
 openpyxl
 python-dateutil
 requests
-streamlit
 openai
 reportlab
 matplotlib
+streamlit
+pandas
+pyyaml
+pillow
+
