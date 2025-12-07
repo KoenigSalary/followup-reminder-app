@@ -1,17 +1,40 @@
-# ✅ 4️⃣ CREATE `mom_agent.py` (FOLLOW-UP ENGINE)
-
-~~~python
 import pandas as pd
+from datetime import datetime
 import yaml
-from email_engine import send_email
-from datetime import date
+import os
 
+# Load config
 with open("config.yaml", "r") as f:
     config = yaml.safe_load(f)
 
 MOM_FILE = config["paths"]["mom_file"]
-TEST_EMAIL = config["email"]["test_email"]
 
+def add_task(meeting_id, title, details, department, assigned_to, created_by, deadline):
+
+    df = pd.read_excel(MOM_FILE, sheet_name="Tasks")
+    df.columns = df.columns.str.strip()
+
+    new_id = int(df["TaskID"].max()) + 1 if not df.empty else 1
+
+    new_row = {
+        "TaskID": new_id,
+        "MeetingID": meeting_id,
+        "Title": title,
+        "Details": details,
+        "Department": department,
+        "AssignedTo": assigned_to,
+        "CreatedBy": created_by,
+        "CreatedDate": datetime.now(),
+        "Deadline": deadline,
+        "Status": "pending",
+        "LastUpdateDate": "",
+        "LastUpdateBy": ""
+    }
+
+    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+    df.to_excel(MOM_FILE, sheet_name="Tasks", index=False)
+
+    return new_id
 
 def followup_team_members():
 
