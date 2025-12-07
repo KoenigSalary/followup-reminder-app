@@ -245,16 +245,40 @@ with tab10:
 # ✅ PDF DOWNLOADS WITH UNIQUE KEYS
 # ============================================================
 
-st.subheader("📄 Download User Performance Score PDF")
-user_name = st.selectbox("Select Executive", users["Name"], key="pdf_exec")
-if st.button("Generate User Score PDF", key="pdf_exec_btn"):
-    pdf_path = generate_user_score_pdf(user_name)
-    with open(pdf_path, "rb") as f:
-        st.download_button("Download PDF", f, file_name="UserScore.pdf", key="pdf_exec_dl")
+    st.markdown("### 📄 Download User Performance Score PDF")
 
-st.subheader("📄 Download Department Summary PDF")
-dept_name = st.selectbox("Select Department", users["Department"].unique(), key="pdf_dept")
-if st.button("Generate Department PDF", key="pdf_dept_btn"):
-    pdf_path = generate_department_summary(dept_name)
-    with open(pdf_path, "rb") as f:
-        st.download_button("Download PDF", f, file_name="DepartmentSummary.pdf", key="pdf_dept_dl")
+    user_name = st.selectbox(
+        "Select Executive",
+        users["Name"],
+        key="pdf_exec"
+    )
+
+    if st.button("Generate User Score PDF", key="pdf_exec_btn"):
+        pdf_path = generate_user_score_pdf(user_name)
+        with open(pdf_path, "rb") as f:
+            st.download_button(
+                "⬇️ Download User Performance Score PDF",
+                f,
+                file_name="UserScore.pdf",
+                key="pdf_exec_dl"
+            )
+
+    st.markdown("---")
+
+    st.markdown("### 📄 Download Department Summary PDF")
+
+    dept_name = st.selectbox(
+        "Select Department",
+        users["Department"].unique(),
+        key="pdf_dept"
+    )
+
+    if st.button("Generate Department PDF", key="pdf_dept_btn"):
+        pdf_path = generate_department_summary(dept_name)
+        with open(pdf_path, "rb") as f:
+            st.download_button(
+                "⬇️ Download Department Summary PDF",
+                f,
+                file_name="DepartmentSummary.pdf",
+                key="pdf_dept_dl"
+            )
