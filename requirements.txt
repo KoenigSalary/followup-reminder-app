@@ -1,5 +1,6 @@
 pyyaml
 pandas
 streamlit
-reportlab
 matplotlib
+reportlab
+openpyxl
