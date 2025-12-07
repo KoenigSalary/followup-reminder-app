@@ -1,8 +1,9 @@
 streamlit
 pandas
-pyyaml
 reportlab
 matplotlib
 python-dotenv
 openpyxl
 openai>=1.3.0
+PyYAML
+schedule
