@@ -1,38 +1,40 @@
 import pandas as pd
-from datetime import date
+import os
+import yaml
+from datetime import datetime
 from email_engine import send_email
 
-OWNER_EMAIL = "praveen.chaudhary@koenig-solutions.com"
-MOM_FILE = "MoM_Master.xlsx"
+with open("config.yaml", "r") as f:
+    config = yaml.safe_load(f)
+
+MOM_FILE = config["paths"]["mom_file"]
+OWNER_EMAIL = os.getenv("TEST_EMAIL")
 
 def send_daily_summary():
-    tasks = pd.read_excel(MOM_FILE, sheet_name="Tasks")
-    tasks.columns = tasks.columns.str.strip()
+    df = pd.read_excel(MOM_FILE, sheet_name="Tasks")
 
-    completed = len(tasks[tasks["Status"] == "completed"])
-    pending = len(tasks[tasks["Status"] == "pending"])
-    overdue = len(
-        tasks[
-            (pd.to_datetime(tasks["Deadline"]) < pd.to_datetime(date.today())) &
-            (tasks["Status"] == "pending")
-        ]
-    )
+    total = len(df)
+    pending = len(df[df["Status"] == "pending"])
+    completed = len(df[df["Status"] == "completed"])
+    overdue = len(df[(df["Status"] == "pending") & (pd.to_datetime(df["Deadline"]) < datetime.today())])
+
+    today = datetime.today().strftime("%Y-%m-%d")
 
     body = f"""
-📊 DAILY MoM SUMMARY – {date.today()}
+📊 DAILY MoM SUMMARY – {today}
 
 ✅ Completed: {completed}
 ⏳ Pending: {pending}
 🔥 Overdue: {overdue}
-
-This is your FINAL MODE summary.
 """
 
     send_email(
         OWNER_EMAIL,
-        f"📊 Daily MoM Summary – {date.today()}",
+        f"Daily MoM Summary – {today}",
         body
     )
+
+    print("✅ Daily summary email sent")
 
 if __name__ == "__main__":
     send_daily_summary()

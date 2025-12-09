@@ -1,77 +1,47 @@
 import pandas as pd
-from datetime import datetime, timedelta
 import os
+from datetime import datetime, timedelta
+import yaml
+
 from email_engine import send_email
-from config_loader import load_config
 
-config = load_config()
+with open("config.yaml", "r") as f:
+    config = yaml.safe_load(f)
 
-MOM_FILE = "MoM_Master.xlsx"
-OWNER_EMAIL = "praveen.chaudhary@koenig-solutions.com"
+MOM_FILE = config["paths"]["mom_file"]
+OWNER_EMAIL = os.getenv("TEST_EMAIL")
 
-def should_send_followup(priority, last_followup_date):
-    today = datetime.now().date()
+def process_followups():
+    print("✅ Running MoM Followup Engine")
 
-    rules = {
-        "HIGH": 2,
-        "MEDIUM": 3,
-        "LOW": 5
-    }
-
-    days = rules.get(priority.upper(), 3)
-
-    if pd.isna(last_followup_date):
-        return True
-
-    return (today - last_followup_date.date()).days >= days
-
-
-def run_followup_engine():
     df = pd.read_excel(MOM_FILE, sheet_name="Tasks")
-    df.columns = df.columns.str.strip()
+    df["Deadline"] = pd.to_datetime(df["Deadline"], errors="coerce")
 
-    today = datetime.now().date()
-    updates = []
+    today = datetime.today().date()
 
-    for i, row in df.iterrows():
-        if row["Status"] == "completed":
+    for _, row in df.iterrows():
+        if row["Status"].lower() != "pending":
             continue
 
-        priority = row.get("Priority", "MEDIUM")
-        last_followup = row.get("LastFollowupDate")
+        if pd.isna(row["Deadline"]):
+            continue   # ✅ FIXES NaT ERROR
 
-        if should_send_followup(priority, last_followup):
+        due = row["Deadline"].date()
 
-            subject = f"Follow-Up: {row['Title']}"
+        if today >= due:
+            subject = f"MoM Follow-Up: {row['Title']}"
             body = f"""
-Hello,
+Dear {row['AssignedTo']},
 
-This is a reminder for your pending task:
+This is a reminder for your pending MoM task:
 
 Task: {row['Title']}
 Department: {row['Department']}
-Deadline: {row['Deadline']}
-Priority: {priority}
+Deadline: {row['Deadline'].date()}
 
-Please update the status.
+Please update your status.
 
 Regards,
-MoM Automation Agent
-            """
-
-            send_email(
-                OWNER_EMAIL,        # ✅ test mode final (only your email)
-                subject,
-                body
-            )
-
-            df.at[i, "LastFollowupDate"] = today
-            updates.append(row["TaskID"])
-
-    df.to_excel(MOM_FILE, sheet_name="Tasks", index=False)
-
-    print("Follow-up sent for Tasks:", updates)
-
-
-if __name__ == "__main__":
-    run_followup_engine()
+Koenig MoM Automation
+"""
+            send_email(OWNER_EMAIL, subject, body)

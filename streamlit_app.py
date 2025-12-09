@@ -166,8 +166,8 @@ with st.sidebar:
     # MANUAL EMAIL SEND
     st.markdown("#### 📧 Manual Email Test")
     test_recipient = st.text_input("Recipient Email", value=os.getenv('TEST_EMAIL', ''))
-    test_subject = st.text_input("Subject", value="Test Email from MoM Agent")
-    test_body = st.text_area("Body", value="This is a test email from Koenig MoM Agent ✅")
+    test_subject = st.text_input("Subject", value="Chennai RRF")
+    test_body = st.text_area("Body", value="Dear COM, I have shared Chennai RRF with you, Kindly Acknowledge✅")
     
     if st.button("📤 Send Test Email", key="send_test_email"):
         if test_recipient and test_subject and test_body:
@@ -335,72 +335,103 @@ with tabs[5]:
 # ============= TAB 7: AI MOM EXTRACTOR =============
 with tabs[6]:
     st.markdown("### 🤖 AI MoM Extractor")
-    
-    api_key = os.getenv('OPENAI_API_KEY')
-    
+
+    api_key = os.getenv("OPENAI_API_KEY")
+
     if not api_key:
         st.error("❌ OPENAI_API_KEY not found")
         st.info("💡 Set OPENAI_API_KEY in .env file")
         st.stop()
-    
-    meeting_notes = st.text_area("Meeting Notes", height=300, placeholder="Paste meeting minutes...")
-    
+
+    meeting_notes = st.text_area(
+        "Meeting Notes",
+        height=300,
+        placeholder="Paste meeting minutes..."
+    )
+
     if st.button("🔍 Extract Tasks with AI"):
-        if meeting_notes:
+        if meeting_notes.strip():
             with st.spinner("🤖 AI is extracting tasks..."):
                 try:
                     client = OpenAI(api_key=api_key)
-                    
-                    prompt = f"""Extract actionable tasks. Return JSON array:
-[{{"title": "...", "details": "...", "assigned_to": "...", "department": "...", "deadline": "YYYY-MM-DD or TBD"}}]
 
-Notes: {meeting_notes}"""
-                    
+                    prompt = f"""
+Extract actionable tasks.
+Return ONLY valid JSON array like this:
+
+[
+  {{
+    "title": "...",
+    "details": "...",
+    "assigned_to": "...",
+    "department": "...",
+    "deadline": "YYYY-MM-DD or TBD"
+  }}
+]
+
+NOTES:
+{meeting_notes}
+"""
+
                     resp = client.chat.completions.create(
-                        model=config['ai']['model'],
+                        model=config["ai"]["model"],
                         messages=[
-                            {"role": "system", "content": "Extract tasks from meeting notes as JSON."},
+                            {"role": "system", "content": "You extract MoM tasks as structured JSON only."},
                             {"role": "user", "content": prompt}
                         ],
                         temperature=0.0
                     )
-                    
-                    extracted = resp.choices[0].message.content
-                    st.code(extracted, language='json')
-                    
-                    try:
-                        # FIX: Strip markdown code fences if present
-                        clean_json = extracted.strip()
-                        if clean_json.startswith('```'):
-                            # Remove ```json and closing ```
-                            lines = clean_json.split('\n')
-                            clean_json = '\n'.join(lines[1:-1])
-    
-                        tasks_list = json.loads(clean_json)
-                        st.dataframe(pd.DataFrame(tasks_list), use_container_width=True)
-                        
-                        if st.button("💾 Save All Tasks"):
-                            for task in tasks_list:
-                                add_task(
-                                    meeting_id="AI-Extract",
-                                    title=task.get('title', 'Untitled'),
-                                    details=task.get('details', ''),
-                                    department=task.get('department', 'General'),
-                                    assigned_to=task.get('assigned_to', 'Unassigned'),
-                                    created_by='AI-Agent',
-                                    deadline=task.get('deadline', 'TBD'),
-                                    category='Regular'
-                                )
-                            st.success(f"✅ Saved {len(tasks_list)} tasks!")
-                            st.cache_data.clear()
-                            st.rerun()
-                    except:
-                        st.error("❌ Failed to parse JSON")
+
+                    extracted = resp.choices[0].message.content.strip()
+                    st.code(extracted, language="json")
+
+                    # ✅ Remove markdown fences if present
+                    if extracted.startswith("```"):
+                        extracted = extracted.split("```")[1].strip()
+
+                    tasks_list = json.loads(extracted)
+
+                    st.dataframe(pd.DataFrame(tasks_list), use_container_width=True)
+
+                    # ✅ STORE FOR SAVE BUTTON
+                    st.session_state["ai_tasks"] = tasks_list
+
                 except Exception as e:
-                    if 'insufficient_quota' in str(e):
-                        st.error("❌ OpenAI quota exceeded")
-                    else:
-                        st.error(f"❌ Error: {e}")
+                    st.error(f"❌ AI Error: {e}")
+
+    # ✅ SAFE SAVE BUTTON (NO NAMEERROR NOW)
+    if "ai_tasks" in st.session_state:
+        if st.button("💾 Save All Extracted Tasks"):
+            saved = 0
+
+            for task in st.session_state["ai_tasks"]:
+                deadline_str = str(task.get("deadline", "")).strip()
+
+                if deadline_str.upper() in ["TBD", "", "NONE", "MONTHLY"]:
+                    deadline_obj = datetime.today() + timedelta(days=7)
+                else:
+                    try:
+                        deadline_obj = datetime.strptime(deadline_str, "%Y-%m-%d")
+                    except:
+                        deadline_obj = datetime.today() + timedelta(days=7)
+
+                add_task(
+                    meeting_id="AI-Extract",
+                    title=task.get("title", "Untitled"),
+                    details=task.get("details", ""),
+                    department=task.get("department", "General"),
+                    assigned_to=task.get("assigned_to", "Unassigned"),
+                    created_by="AI-Agent",
+                    deadline=deadline_obj,
+                    category="Regular"
+                )
+
+                saved += 1
+
+            st.success(f"✅ Successfully saved {saved} AI tasks!")
+            del st.session_state["ai_tasks"]
+            st.cache_data.clear()
+            st.rerun()
 
 # ============= TAB 8: EXECUTIVE =============
 with tabs[7]:
