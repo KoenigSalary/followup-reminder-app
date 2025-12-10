@@ -318,9 +318,16 @@ with tabs[3]:
         'Status': lambda x: (x == 'completed').sum()
     }).rename(columns={'TaskID': 'Total', 'Status': 'Completed'})
     
-    dept_stats['Pending'] = dept_stats['Total'] - dept_stats['Completed']
-    dept_stats['Completion %'] = (dept_stats['Completed'] / dept_stats['Total'] * 100).round(1)
-    
+    # Ensure 'Completed' and 'Total' columns are numeric
+    dept_stats['Completed'] = pd.to_numeric(dept_stats['Completed'], errors='coerce')
+    dept_stats['Total'] = pd.to_numeric(dept_stats['Total'], errors='coerce')
+
+    # Handle cases where there may be division by zero or invalid data
+    dept_stats['Completion %'] = (dept_stats['Completed'] / dept_stats['Total'] * 100).fillna(0)
+
+    # Round the result to 1 decimal place
+    dept_stats['Completion %'] = dept_stats['Completion %'].round(1)
+
     st.dataframe(dept_stats, use_container_width=True)
 
 # ============= TAB 5: ADD TASK =============
