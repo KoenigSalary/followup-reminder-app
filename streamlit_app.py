@@ -111,8 +111,6 @@ except Exception as e:
     logs = pd.DataFrame()
     escalations = pd.DataFrame()
 
-# ✅ ====== END SAFE INITIALIZATION ======
-
 # ============= HEADER =============
 st.markdown(f'<h1 class="main-header">📋 {config["branding"]["dashboard_title"]}</h1>', unsafe_allow_html=True)
 
@@ -415,31 +413,39 @@ with tabs[6]:
                 try:
                     client = OpenAI(api_key=api_key)
 
-                    prompt = f"""
-Extract actionable tasks.
-Return ONLY valid JSON array like this:
+prompt = f"""
+You MUST return ONLY a valid JSON array.
+Do NOT add explanations.
+Do NOT add markdown.
+Do NOT add any text before or after JSON.
+
+Strict format:
 
 [
   {{
-    "title": "...",
-    "details": "...",
-    "assigned_to": "...",
-    "department": "...",
+    "title": "",
+    "details": "",
+    "assigned_to": "",
+    "department": "",
     "deadline": "YYYY-MM-DD or TBD"
   }}
 ]
 
-NOTES:
+Meeting Notes:
 {meeting_notes}
 """
 
                     resp = client.chat.completions.create(
                         model=config["ai"]["model"],
                         messages=[
-                            {"role": "system", "content": "You extract MoM tasks as structured JSON only."},
+                            {
+                                "role": "system",
+                                "content": "You MUST return ONLY a valid raw JSON array. NO markdown. NO explanation. NO text outside JSON."
+                            },
                             {"role": "user", "content": prompt}
                         ],
-                        temperature=0.0
+                        temperature=0.0,
+                        max_tokens=1200  # ✅ CRITICAL: Prevents GitHub truncation
                     )
 
                     extracted = resp.choices[0].message.content.strip()
@@ -447,7 +453,7 @@ NOTES:
 
                     # ✅ Remove markdown fences if present
                     if extracted.startswith("```"):
-                        extracted = extracted.split("```")[1].strip()
+                        extracted = extracted.replace("```json", "").replace("```", "").strip()
 
                     # ✅ DEBUG: Show raw AI output
                     st.write("🔍 Raw AI Response:", extracted)
