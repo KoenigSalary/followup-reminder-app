@@ -322,15 +322,15 @@ with tabs[3]:
         'Status': lambda x: (x == 'completed').sum()  # Count completed tasks
     }).rename(columns={'TaskID': 'Total', 'Status': 'Completed'})
 
-    # Step 3: Fill NaN values (if any) and convert to numeric
+    # Ensure 'Completed' and 'Total' columns are numeric
     dept_perf['Completed'] = pd.to_numeric(dept_perf['Completed'], errors='coerce')
     dept_perf['Total'] = pd.to_numeric(dept_perf['Total'], errors='coerce')
 
-    # Replace NaN with 0 for 'Completed' and set 'Total' to 1 to avoid division by zero
+    # Replace NaN values with 0 for 'Completed' and 1 for 'Total' (to avoid division by zero)
     dept_perf['Completed'] = dept_perf['Completed'].fillna(0)
-    dept_perf['Total'] = dept_perf['Total'].fillna(1)  # Avoid division by 0
+    dept_perf['Total'] = dept_perf['Total'].fillna(1)  # Avoid division by zero
 
-    # Step 4: Calculate 'Completion %' and round to 1 decimal place
+    # Calculate Completion % and round to 1 decimal place
     dept_perf['Completion %'] = (dept_perf['Completed'] / dept_perf['Total'] * 100).round(1)
 
     # Display the department performance stats
