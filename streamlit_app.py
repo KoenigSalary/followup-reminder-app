@@ -74,38 +74,44 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ============= LOAD DATA =============
-@st.cache_data(ttl=60)
-def load_data():
-    """Load all data from Excel"""
-    try:
-        users = pd.read_excel(MOM_FILE, sheet_name='Users')
-        tasks = pd.read_excel(MOM_FILE, sheet_name='Tasks')
-        meetings = pd.read_excel(MOM_FILE, sheet_name='Meetings')
-        logs = pd.read_excel(MOM_FILE, sheet_name='Logs')
-        escalations = pd.read_excel(MOM_FILE, sheet_name='Escalations')
-        # FIX: Add Category column if missing
-        if 'Category' not in tasks.columns:
-            tasks['Category'] = 'Regular'
-        
-        # FIX: Add Category column if missing
-        if 'Category' not in tasks.columns:
-            tasks['Category'] = 'Regular'
-        
-        # Convert dates
-        if 'LastUpdateDate' in tasks.columns:
-            tasks['LastUpdateDate'] = pd.to_datetime(tasks['LastUpdateDate'], errors='coerce')
-        if 'Deadline' in tasks.columns:
-            tasks['Deadline'] = pd.to_datetime(tasks['Deadline'], errors='coerce')
-        if 'CreatedDate' in tasks.columns:
-            tasks['CreatedDate'] = pd.to_datetime(tasks['CreatedDate'], errors='coerce')
-        
-        return users, tasks, meetings, logs, escalations
-    except FileNotFoundError:
-        st.error(f"❌ MoM_Master.xlsx not found at: {MOM_FILE}")
-        st.stop()
+# ✅ ====== GLOBAL SAFE INITIALIZATION (DO NOT MOVE) ======
 
-users, tasks, meetings, logs, escalations = load_data()
+try:
+    @st.cache_data(ttl=60)
+    def load_data():
+        xls = pd.ExcelFile(MOM_FILE)
+
+        users = pd.read_excel(xls, 'Users') if 'Users' in xls.sheet_names else pd.DataFrame()
+        tasks = pd.read_excel(xls, 'Tasks') if 'Tasks' in xls.sheet_names else pd.DataFrame()
+        meetings = pd.read_excel(xls, 'Meetings') if 'Meetings' in xls.sheet_names else pd.DataFrame()
+        logs = pd.read_excel(xls, 'Logs') if 'Logs' in xls.sheet_names else pd.DataFrame()
+        escalations = pd.read_excel(xls, 'Escalations') if 'Escalations' in xls.sheet_names else pd.DataFrame()
+
+        # ✅ Ensure Tasks always has structure
+        if tasks is None or tasks.empty:
+            tasks = pd.DataFrame(columns=[
+                "TaskID", "MeetingID", "Title", "Details",
+                "Department", "AssignedTo", "Status",
+                "Deadline", "CreatedDate", "CreatedBy", "Category"
+            ])
+
+        return users, tasks, meetings, logs, escalations
+
+    users, tasks, meetings, logs, escalations = load_data()
+
+except Exception as e:
+    print("❌ CRITICAL LOAD ERROR:", e)
+    users = pd.DataFrame()
+    tasks = pd.DataFrame(columns=[
+        "TaskID", "MeetingID", "Title", "Details",
+        "Department", "AssignedTo", "Status",
+        "Deadline", "CreatedDate", "CreatedBy", "Category"
+    ])
+    meetings = pd.DataFrame()
+    logs = pd.DataFrame()
+    escalations = pd.DataFrame()
+
+# ✅ ====== END SAFE INITIALIZATION ======
 
 # ============= HEADER =============
 st.markdown(f'<h1 class="main-header">📋 {config["branding"]["dashboard_title"]}</h1>', unsafe_allow_html=True)
@@ -242,8 +248,17 @@ with tabs[0]:
     # Recent Tasks
     st.markdown("### 📋 Recent Tasks")
     recent_tasks = tasks.sort_values('CreatedDate', ascending=False).head(10)
-    display_cols = ['TaskID', 'Title', 'Department', 'AssignedTo', 'Status', 'Deadline']
-    st.dataframe(recent_tasks[display_cols], use_container_width=True)
+    display_cols = [
+         "TaskID", 
+        "MeetingID",
+        "Title",
+        "Details",
+        "Department",
+        "AssignedTo",
+        "Status",
+        "Deadline"
+    ]
+    st.dataframe(tasks[display_cols], use_container_width=True)
 
 # ============= TAB 2: ALL TASKS =============
 with tabs[1]:
