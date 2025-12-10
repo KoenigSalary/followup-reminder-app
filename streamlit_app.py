@@ -318,14 +318,16 @@ with tabs[3]:
         'Status': lambda x: (x == 'completed').sum()
     }).rename(columns={'TaskID': 'Total', 'Status': 'Completed'})
     
-    dept_stats['Completed'] = pd.to_numeric(dept_stats['Completed'], errors='coerce')
-    dept_stats['Total'] = pd.to_numeric(dept_stats['Total'], errors='coerce')
+    # Ensure 'Completed' and 'Total' columns are numeric
+    dept_perf['Completed'] = pd.to_numeric(dept_perf['Completed'], errors='coerce')
+    dept_perf['Total'] = pd.to_numeric(dept_perf['Total'], errors='coerce')
 
-    # Handle cases where there may be division by zero or invalid data
-    dept_stats['Completion %'] = (dept_stats['Completed'] / dept_stats['Total'] * 100).fillna(0)
+    # Replace NaN with 0 (or any suitable value) for 'Completed' and 'Total'
+    dept_perf['Completed'] = dept_perf['Completed'].fillna(0)
+    dept_perf['Total'] = dept_perf['Total'].fillna(1)  # Set 1 instead of 0 to avoid division by zero
 
-    # Round the result to 1 decimal place
-    dept_stats['Completion %'] = dept_stats['Completion %'].round(1)
+    # Calculate Completion % and round to 1 decimal place
+    dept_perf['Completion %'] = (dept_perf['Completed'] / dept_perf['Total'] * 100).round(1)
     
     st.dataframe(dept_stats, use_container_width=True)
     
