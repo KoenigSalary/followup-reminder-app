@@ -449,7 +449,21 @@ NOTES:
                     if extracted.startswith("```"):
                         extracted = extracted.split("```")[1].strip()
 
-                    tasks_list = json.loads(extracted)
+                    # ✅ DEBUG: Show raw AI output
+                    st.write("🔍 Raw AI Response:", extracted)
+
+                    # ✅ SAFETY: Handle empty AI response
+                    if not extracted.strip():
+                        st.error("❌ AI did not return any response. Please try again.")
+                        st.stop()
+
+                    # ✅ SAFETY: Handle invalid JSON
+                    try:
+                        tasks_list = json.loads(extracted)
+                    except json.JSONDecodeError as e:
+                        st.error("❌ AI response was not valid JSON.")
+                        st.code(extracted)
+                        st.stop()
 
                     st.dataframe(pd.DataFrame(tasks_list), use_container_width=True)
 
