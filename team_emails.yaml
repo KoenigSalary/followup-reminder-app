@@ -1,13 +1,34 @@
-Aditya: aditya.singh@koenig-solutions.com
-Jatin: jatin.khurana@koenig-solutions.com
-Jony: jony.saini@koenig-solutions.com
-Sarika: sarika.gupta@koenig-solutions.com
-Sunil: sunilkumar.kushwaha@koenig-solutions.com
-Ritika: ritika.bhalla@koenig-solutions.com
-Tripti: tripti.sharma@koenig-solutions.com
-Anurag: anurag.chauhan@koenig-solutions.com
-Vipin: vipin.nautiyal@koenig-solutions.com
-Dimna: Dimna.K@koenig-solutions.com
-Nishant: Nishant.Yash@koenig-solutions.com
-Krishna: Krishna.kumar@koenig-solutions.com
-Tamanna: Tamanna.Alisha@koenig-solutions.com
+# Team Email Directory
+# Format: Name: email@koenig-solutions.com
+
+team_emails:
+  Aditya: aditya.singh@koenig-solutions.com
+  Jatin: jatin.khurana@koenig-solutions.com
+  Jony: jony.saini@koenig-solutions.com
+  Sarika: sarika.gupta@koenig-solutions.com
+  Sunil: sunilkumar.kushwaha@koenig-solutions.com
+  Ritika: ritika.bhalla@koenig-solutions.com
+  Tripti: tripti.sharma@koenig-solutions.com
+  Anurag: anurag.chauhan@koenig-solutions.com
+  Vipin: vipin.nautiyal@koenig-solutions.com
+  Dimna: Dimna.K@koenig-solutions.com
+  Nishant: Nishant.Yash@koenig-solutions.com
+  Krishna: Krishna.kumar@koenig-solutions.com
+  Tamanna: Tamanna.Alisha@koenig-solutions.com
+  
+  # Aliases for full names (if used in tasks)
+  "Aditya Singh": aditya.singh@koenig-solutions.com
+  "Jatin Khurana": jatin.khurana@koenig-solutions.com
+  "Jony Saini": jony.saini@koenig-solutions.com
+  "Sarika Gupta": sarika.gupta@koenig-solutions.com
+  "Sunil Kumar": sunilkumar.kushwaha@koenig-solutions.com
+  "Ritika Bhalla": ritika.bhalla@koenig-solutions.com
+  "Tripti Sharma": tripti.sharma@koenig-solutions.com
+  "Anurag Chauhan": anurag.chauhan@koenig-solutions.com
+  "Vipin Nautiyal": vipin.nautiyal@koenig-solutions.com
+  "Krishna Kumar": Krishna.kumar@koenig-solutions.com
+  "Tamanna Alisha": Tamanna.Alisha@koenig-solutions.com
+  
+  # Test user
+  "Test User": praveen.chaudhary@koenig-solutions.com
+  "Praveen Chaudhary": praveen.chaudhary@koenig-solutions.com
