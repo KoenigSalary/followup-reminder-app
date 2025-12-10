@@ -62,19 +62,21 @@ Department: {department}
 Deadline: {deadline}
 
 Regards,
-Koenig MoM Automation
+Praveen Chaudhary
 """
 
     try:
         send_email(assigned_to, subject, body)
     except Exception as e:
+        st.warning("⚠️ User email could not be sent.")
         print("⚠️ User email failed:", e)
 
     try:
         if OWNER_EMAIL:
             send_email(OWNER_EMAIL, subject, body)
     except Exception as e:
+        st.warning("⚠️ Admin email could not be sent.")
         print("⚠️ Admin email failed:", e)
 
-    print("✅ Task saved successfully:", task_id)
+    st.success(f"✅ Task saved successfully: {task_id}")
 
