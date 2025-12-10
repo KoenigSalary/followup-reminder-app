@@ -41,3 +41,21 @@ def add_task(
 
     with pd.ExcelWriter(MOM_FILE, mode="a", engine="openpyxl", if_sheet_exists="overlay") as writer:
         df.to_excel(writer, sheet_name="Tasks", index=False)
+
+    subject = f"New Task Assigned: {title}"
+    body = f"""
+    Hello {assigned_to},
+
+    A new task has been assigned to you.
+
+    Task ID: {next_task_id}
+    Meeting ID: {meeting_id}
+    Title: {title}
+    Details: {details}
+    Deadline: {deadline}
+
+    Regards,
+    Koenig MoM System
+    """
+    send_email(assigned_to, subject, body)
+
