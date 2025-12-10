@@ -1,11 +1,6 @@
 streamlit
 pandas
-reportlab
-matplotlib
-python-dotenv
 openpyxl
-openai>=1.3.0
-PyYAML
-schedule
+python-dotenv
 pyyaml
-fpdf
+openai

@@ -20,7 +20,7 @@ load_dotenv()
 
 # Import custom modules
 from mom_agent import add_task, send_email
-from email_engine import process_inbox_replies
+from email_reply_processor import process_inbox_replies
 
 # ============= CONFIGURATION =============
 with open('config.yaml', 'r', encoding='utf-8') as f:
@@ -260,7 +260,39 @@ with tabs[1]:
         (tasks['Department'].isin(dept_filter))
     ]
     
+    # Display checkboxes for each task
+    task_ids_to_delete = []
+    for i, task in filtered_tasks.iterrows():
+        # Use a fallback if TaskID is NaN or invalid
+        task_id = task['TaskID'] if pd.notna(task['TaskID']) else f"Unknown_{i}"
+    
+        # Create a unique key for each checkbox using task_id and index
+        checkbox = st.checkbox(f"Delete task {task['TaskID']} - {task['Title']}", key=f"{task_id}_{i}")
+    
+        if checkbox:
+            task_ids_to_delete.append(task['TaskID'])
+
+    # Display the filtered tasks in a table
     st.dataframe(filtered_tasks, use_container_width=True)
+
+    # Add a button to delete selected tasks
+    if task_ids_to_delete:
+        if st.button("Delete selected tasks"):
+            try:
+                # Delete tasks from the DataFrame
+                tasks_to_keep = tasks[~tasks['TaskID'].isin(task_ids_to_delete)]
+                
+                # Save the updated tasks back to Excel
+                with pd.ExcelWriter(MOM_FILE, mode='a', if_sheet_exists='replace', engine='openpyxl') as writer:
+                    tasks_to_keep.to_excel(writer, sheet_name='Tasks', index=False)
+                
+                st.success(f"✅ Successfully deleted {len(task_ids_to_delete)} task(s)!")
+                st.cache_data.clear()
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Error deleting tasks: {e}")
+    else:
+        st.write("No tasks selected for deletion.")
 
 # ============= TAB 3: BOSS-MOM =============
 with tabs[2]:
