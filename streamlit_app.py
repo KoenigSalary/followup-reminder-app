@@ -542,6 +542,6 @@ with tabs[9]:
     }).rename(columns={'TaskID': 'Total', 'Status': 'Completed'})
     
     dept_perf['Pending'] = dept_perf['Total'] - dept_perf['Completed']
-    dept_perf['Completion %'] = (dept_perf['Completed'] / dept_perf['Total'] * 100).round(1)
+    dept_perf['Completed'] = pd.to_numeric(dept_perf['Completed'], errors='coerce').fillna(0)
     
     st.dataframe(dept_perf, use_container_width=True)
