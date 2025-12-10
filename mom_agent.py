@@ -4,7 +4,6 @@ import yaml
 import uuid
 from datetime import datetime
 from dotenv import load_dotenv
-
 from email_engine import send_email
 
 # ✅ Load ENV safely
