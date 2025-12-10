@@ -416,64 +416,64 @@ with tabs[6]:
                     client = OpenAI(api_key=api_key)
 
                     prompt = f"""
-You MUST return ONLY a valid JSON array.
-NO markdown.
-NO explanation.
-NO text outside JSON.
+    You MUST return ONLY a valid JSON array.
+    NO markdown.
+    NO explanation.
+    NO text outside JSON.
 
-Format:
+    Format:
 
-[
-  {{
-    "title": "",
-    "details": "",
-    "assigned_to": "",
-    "department": "",
-    "deadline": "YYYY-MM-DD or TBD"
-  }}
-]
+    [
+      {{
+        "title": "",
+        "details": "",
+        "assigned_to": "",
+        "department": "",
+        "deadline": "YYYY-MM-DD or TBD"
+      }}
+    ]
 
-Meeting Notes:
-{meeting_notes}
-"""
+    Meeting Notes:
+    {meeting_notes}
+    """
 
-                resp = client.chat.completions.create(
-                    model=config["ai"]["model"],
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "Return ONLY raw JSON. No explanation. No markdown."
-                        },
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.0,
-                    max_tokens=1200
-                )
+                    resp = client.chat.completions.create(
+                        model=config["ai"]["model"],
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": "Return ONLY raw JSON. No explanation. No markdown."
+                            },
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.0,
+                        max_tokens=1200
+                    )
 
-                extracted = resp.choices[0].message.content.strip()
-                st.code(extracted, language="json")
+                    extracted = resp.choices[0].message.content.strip()
+                    st.code(extracted, language="json")
 
-                if extracted.startswith("```"):
-                    extracted = extracted.replace("```json", "").replace("```", "").strip()
+                    if extracted.startswith("```"):
+                        extracted = extracted.replace("```json", "").replace("```", "").strip()
 
-                st.write("🔍 Raw AI Response:", extracted)
+                    st.write("🔍 Raw AI Response:", extracted)
 
-                if not extracted.strip():
-                    st.error("❌ AI did not return any response. Please try again.")
-                    st.stop()
+                    if not extracted.strip():
+                        st.error("❌ AI did not return any response. Please try again.")
+                        st.stop()
 
-                try:
-                    tasks_list = json.loads(extracted)
-                except json.JSONDecodeError:
-                    st.error("❌ AI response was not valid JSON.")
-                    st.code(extracted)
-                    st.stop()
+                    try:
+                        tasks_list = json.loads(extracted)
+                    except json.JSONDecodeError:
+                        st.error("❌ AI response was not valid JSON.")
+                        st.code(extracted)
+                        st.stop()
 
-                st.dataframe(pd.DataFrame(tasks_list), use_container_width=True)
-                st.session_state["ai_tasks"] = tasks_list
+                    st.dataframe(pd.DataFrame(tasks_list), use_container_width=True)
+                    st.session_state["ai_tasks"] = tasks_list
 
-            except Exception as e:
-                st.error(f"❌ AI Error: {e}")
+                except Exception as e:
+                    st.error(f"❌ AI Error: {e}")
 
     # ✅ SAFE SAVE BUTTON (NO NAMEERROR NOW)
     if "ai_tasks" in st.session_state:
