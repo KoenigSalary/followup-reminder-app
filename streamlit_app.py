@@ -317,23 +317,23 @@ with tabs[3]:
     tasks = pd.read_excel(MOM_FILE, sheet_name='Tasks')
 
     # Step 2: Group tasks by 'Department' and calculate 'Total' and 'Completed' counts
+    # ✅ Build department performance first
     dept_perf = tasks.groupby('Department').agg({
-        'TaskID': 'count',  # Count total tasks
-        'Status': lambda x: (x == 'completed').sum()  # Count completed tasks
+        'TaskID': 'count',
+        'Status': lambda x: (x == 'completed').sum()
     }).rename(columns={'TaskID': 'Total', 'Status': 'Completed'})
 
-    # Ensure 'Completed' and 'Total' columns are numeric
-    dept_perf['Completed'] = pd.to_numeric(dept_perf['Completed'], errors='coerce')
-    dept_perf['Total'] = pd.to_numeric(dept_perf['Total'], errors='coerce')
+    # ✅ Convert to numeric safely
+    dept_perf['Completed'] = pd.to_numeric(dept_perf['Completed'], errors='coerce').fillna(0)
+    dept_perf['Total'] = pd.to_numeric(dept_perf['Total'], errors='coerce').fillna(0)
 
-    # Replace NaN values with 0 for 'Completed' and 1 for 'Total' (to avoid division by zero)
-    dept_perf['Completed'] = dept_perf['Completed'].fillna(0)
-    dept_perf['Total'] = dept_perf['Total'].fillna(1)  # Avoid division by zero
+    # ✅ Avoid division errors
+    dept_perf['Completion %'] = dept_perf.apply(
+        lambda r: round((r['Completed'] / r['Total'] * 100), 1) if r['Total'] > 0 else 0,
+        axis=1
+    )
 
-    # Calculate Completion % and round to 1 decimal place
-    dept_perf['Completion %'] = (dept_perf['Completed'] / dept_perf['Total'] * 100).round(1)
-
-    # Display the department performance stats
+    # ✅ Display safely
     st.dataframe(dept_perf, use_container_width=True)
 
 # ============= TAB 5: ADD TASK =============
