@@ -20,7 +20,7 @@ load_dotenv()
 
 # Import custom modules
 from mom_agent import add_task, send_email
-from email_reply_processor import process_inbox_replies
+from email_engine import send_email
 
 # ============= CONFIGURATION =============
 with open('config.yaml', 'r', encoding='utf-8') as f:
