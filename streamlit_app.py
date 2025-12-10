@@ -414,26 +414,26 @@ with tabs[6]:
                     client = OpenAI(api_key=api_key)
 
 prompt = f"""
-You MUST return ONLY a valid JSON array.
-Do NOT add explanations.
-Do NOT add markdown.
-Do NOT add any text before or after JSON.
+    You MUST return ONLY a valid JSON array.
+    Do NOT add explanations.
+    Do NOT add markdown.
+    Do NOT add any text before or after JSON.
 
-Strict format:
+    Strict format:
 
-[
-  {{
-    "title": "",
-    "details": "",
-    "assigned_to": "",
-    "department": "",
-    "deadline": "YYYY-MM-DD or TBD"
-  }}
-]
+    [
+      {{
+        "title": "",
+        "details": "",
+        "assigned_to": "",
+        "department": "",
+       "deadline": "YYYY-MM-DD or TBD"
+      }}
+    ]
 
-Meeting Notes:
-{meeting_notes}
-"""
+    Meeting Notes:
+    {meeting_notes}
+    """
 
                     resp = client.chat.completions.create(
                         model=config["ai"]["model"],
