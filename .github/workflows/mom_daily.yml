@@ -1,17 +1,10 @@
----
-
-# ✅ 5️⃣ GITHUB ACTIONS (AUTO RUN DAILY 9 AM)
-
-Create:
-
-📁 `.github/workflows/mom_daily.yml`
-
-~~~yaml
 name: MoM Daily Automation
 
 on:
   schedule:
-    - cron: "30 3 1 * *"   # ✅ 1st of every month at 9:00 AM IST
+    - cron: "30 3 * * *"   # 9:00 AM IST
+    - cron: "30 7 * * *"   # 1:00 PM IST
+    - cron: "30 12 * * *"  # 6:00 PM IST
   workflow_dispatch:
 
 jobs:
@@ -24,14 +17,23 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.11'
 
       - name: Install Dependencies
         run: |
-          pip install pandas pyyaml openpyxl
+          pip install --upgrade pip
+          pip install -r requirements.txt
 
-      - name: Run Monthly Summary
+      - name: Run Daily MoM Check
         env:
-          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          # ✅ CORRECT VARIABLE NAMES
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          OWNER_EMAIL: ${{ secrets.OWNER_EMAIL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          python daily_summary.py
+          echo "🚀 Starting MoM Daily Check"
+          python mom_agent.py
+          echo "✅ Complete"
