@@ -2,7 +2,7 @@ name: Monthly-MoM-Report
 
 on:
   schedule:
-    - cron: "30 3 1 * *"   # Runs at 9:00 AM IST on 1st of every month
+    - cron: "30 3 1 * *"   # 9:00 AM IST on 1st of every month
   workflow_dispatch:
 
 jobs:
@@ -16,22 +16,33 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       - name: Install Dependencies
         run: |
+          pip install --upgrade pip
           pip install -r requirements.txt
-          pip install reportlab matplotlib pandas openpyxl
 
-      - name: Generate Monthly MoM Report PDF
-        run: |
-          python3 monthly_summary_pdf.py
-
-      - name: Email PDF to Manager
+      - name: Generate Monthly Report PDF
         env:
-          EMAIL_USER: ${{ secrets.EMAIL_USER }}
-          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          OWNER_EMAIL: ${{ secrets.OWNER_EMAIL }}
         run: |
+          echo "📄 Generating Monthly Report..."
+          python3 monthly_summary_pdf.py
+          echo "✅ PDF generated"
+
+      - name: Email PDF
+        env:
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+        run: |
+          echo "📧 Emailing Monthly Report..."
           python3 - << 'EOF'
           import smtplib
           from email.mime.multipart import MIMEMultipart
@@ -40,31 +51,45 @@ jobs:
           from email import encoders
           import os
 
-          sender = os.getenv("EMAIL_USER")
-          password = os.getenv("EMAIL_PASS")
-          receiver = "praveen.chaudhary@koenig-solutions.com"  # TEST EMAIL
+          sender = os.getenv("SMTP_USER")
+          password = os.getenv("SMTP_PASS")
+          smtp_server = os.getenv("SMTP_SERVER")
+          smtp_port = int(os.getenv("SMTP_PORT"))
+          receiver = "praveen.chaudhary@koenig-solutions.com"
 
           msg = MIMEMultipart()
           msg["From"] = sender
           msg["To"] = receiver
-          msg["Subject"] = "Monthly MoM Summary Report"
+          msg["Subject"] = "📊 Monthly MoM Summary Report"
 
-          body = "Dear Team,\n\nPlease find attached the Monthly MoM Summary Report.\n\nRegards,\nMoM Automation Bot"
+          body = """Dear Team,
+
+Please find attached the Monthly MoM Summary Report.
+
+Best regards,
+Koenig MoM Automation"""
+          
           msg.attach(MIMEText(body, "plain"))
 
           filename = "Monthly_MoM_Summary.pdf"
-          attachment = open(filename, "rb")
+          try:
+              with open(filename, "rb") as f:
+                  part = MIMEBase("application", "octet-stream")
+                  part.set_payload(f.read())
+                  encoders.encode_base64(part)
+                  part.add_header("Content-Disposition", f"attachment; filename={filename}")
+                  msg.attach(part)
+          except FileNotFoundError:
+              print(f"⚠️  {filename} not found")
 
-          part = MIMEBase("application", "octet-stream")
-          part.set_payload(attachment.read())
-          encoders.encode_base64(part)
-          part.add_header("Content-Disposition", f"attachment; filename={filename}")
-
-          msg.attach(part)
-
-          server = smtplib.SMTP("smtp.office365.com", 587)
-          server.starttls()
-          server.login(sender, password)
-          server.sendmail(sender, receiver, msg.as_string())
-          server.quit()
+          try:
+              server = smtplib.SMTP(smtp_server, smtp_port)
+              server.starttls()
+              server.login(sender, password)
+              server.sendmail(sender, receiver, msg.as_string())
+              server.quit()
+              print(f"✅ Emailed to {receiver}")
+          except Exception as e:
+              print(f"❌ Email failed: {e}")
+              raise
           EOF
