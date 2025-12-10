@@ -20,22 +20,30 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install pandas openpyxl python-dotenv pyyaml
+          pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Run Daily Summary
         env:
-          SENDER: ${{ secrets.SENDER }}
-          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          # ✅ CORRECT VARIABLE NAMES
           SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
           SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          OWNER_EMAIL: ${{ secrets.OWNER_EMAIL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
+          echo "📊 Running Daily Summary..."
           python daily_summary.py
+          echo "✅ Complete"
 
       - name: Run Follow-Up Engine
         env:
-          SENDER: ${{ secrets.SENDER }}
-          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
           SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
           SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
         run: |
+          echo "📧 Running Follow-Up Engine..."
           python followup_engine.py
+          echo "✅ Complete"
