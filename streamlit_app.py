@@ -416,33 +416,33 @@ with tabs[6]:
                     client = OpenAI(api_key=api_key)
 
                     prompt = f"""
-    You MUST return ONLY a valid JSON array.
-    NO markdown.
-    NO explanation.
-    NO text outside JSON.
+You MUST return ONLY a valid JSON array.
+NO markdown.
+NO explanation.
+NO text outside JSON.
 
-    Format:
+Format:
 
-    [
-      {{
-        "title": "",
-        "details": "",
-        "assigned_to": "",
-        "department": "",
-        "deadline": "YYYY-MM-DD or TBD"
-      }}
-    ]
+[
+  {{
+    "title": "",
+    "details": "",
+    "assigned_to": "",
+    "department": "",
+    "deadline": "YYYY-MM-DD or TBD"
+  }}
+]
 
-    Meeting Notes:
-    {meeting_notes}
-    """
+Meeting Notes:
+{meeting_notes}
+"""
 
                     resp = client.chat.completions.create(
                         model=config["ai"]["model"],
                         messages=[
                             {
                                 "role": "system",
-                                "content": "Return ONLY raw JSON. No explanation. No markdown."
+                                "content": "Return ONLY raw JSON array. No explanation. No markdown fences."
                             },
                             {"role": "user", "content": prompt}
                         ],
@@ -453,27 +453,99 @@ with tabs[6]:
                     extracted = resp.choices[0].message.content.strip()
                     st.code(extracted, language="json")
 
-                    if extracted.startswith("```"):
-                        extracted = extracted.replace("```json", "").replace("```", "").strip()
+                    # ✅ ROBUST JSON CLEANING - handles all variations
+                    import re
+                    
+                    # Step 1: Remove markdown fences
+                    cleaned = extracted.replace("```json", "").replace("```", "").strip()
+                    
+                    # Step 2: Extract JSON array using regex (handles extra text)
+                    json_match = re.search(r'(\[.*\])', cleaned, re.DOTALL)
+                    if json_match:
+                        cleaned = json_match.group(1)
+                    
+                    st.write("🔍 Cleaned JSON (first 200 chars):", cleaned[:200] + "...")
 
-                    st.write("🔍 Raw AI Response:", extracted)
-
-                    if not extracted.strip():
+                    if not cleaned.strip():
                         st.error("❌ AI did not return any response. Please try again.")
                         st.stop()
 
+                    # Step 3: Parse JSON
                     try:
-                        tasks_list = json.loads(extracted)
-                    except json.JSONDecodeError:
-                        st.error("❌ AI response was not valid JSON.")
-                        st.code(extracted)
+                        tasks_list = json.loads(cleaned)
+                    except json.JSONDecodeError as e:
+                        st.error(f"❌ AI response was not valid JSON: {e}")
+                        st.code(cleaned, language="text")
+                        st.info("💡 Try again or simplify your meeting notes")
                         st.stop()
 
+                    # Step 4: Validate it's a list
+                    if not isinstance(tasks_list, list):
+                        st.error("❌ AI returned JSON but not an array. Expected [...]")
+                        st.stop()
+
+                    # Step 5: Display extracted tasks
+                    st.success(f"✅ Extracted {len(tasks_list)} tasks successfully!")
                     st.dataframe(pd.DataFrame(tasks_list), use_container_width=True)
+                    
+                    # Store in session state for Save button
                     st.session_state["ai_tasks"] = tasks_list
 
                 except Exception as e:
                     st.error(f"❌ AI Error: {e}")
+                    import traceback
+                    st.code(traceback.format_exc(), language="text")
+
+    # ✅ SAVE BUTTON (appears only if tasks were extracted)
+    if "ai_tasks" in st.session_state:
+        if st.button("💾 Save All Extracted Tasks"):
+            saved = 0
+            failed = 0
+
+            for task in st.session_state["ai_tasks"]:
+                try:
+                    # Convert deadline string to datetime
+                    deadline_str = str(task.get("deadline", "")).strip().upper()
+
+                    if deadline_str in ["TBD", "", "NONE", "MONTHLY", "NULL"]:
+                        deadline_obj = datetime.today() + timedelta(days=7)
+                    else:
+                        try:
+                            deadline_obj = datetime.strptime(deadline_str, "%Y-%m-%d")
+                        except:
+                            deadline_obj = datetime.today() + timedelta(days=7)
+
+                    # Save task
+                    task_id = add_task(
+                        meeting_id="AI-Extract",
+                        title=task.get("title", "Untitled"),
+                        details=task.get("details", ""),
+                        department=task.get("department", "General"),
+                        assigned_to=task.get("assigned_to", "Unassigned"),
+                        created_by="AI-Agent",
+                        deadline=deadline_obj,
+                        category="Regular"
+                    )
+
+                    if task_id:
+                        saved += 1
+                    else:
+                        failed += 1
+
+                except Exception as e:
+                    failed += 1
+                    st.error(f"❌ Failed to save '{task.get('title', 'Unknown')}': {e}")
+
+            # Show results
+            if saved > 0:
+                st.success(f"✅ Successfully saved {saved}/{len(st.session_state['ai_tasks'])} tasks!")
+            if failed > 0:
+                st.warning(f"⚠️ {failed} tasks failed to save")
+
+            # Clear and refresh
+            del st.session_state["ai_tasks"]
+            st.cache_data.clear()
+            st.rerun()
 
     # ✅ SAFE SAVE BUTTON (NO NAMEERROR NOW)
     if "ai_tasks" in st.session_state:
