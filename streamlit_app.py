@@ -416,19 +416,22 @@ with tabs[6]:
                     client = OpenAI(api_key=api_key)
 
                     prompt = f"""
-You MUST return ONLY a valid JSON array.
-NO markdown.
-NO explanation.
-NO text outside JSON.
+Extract actionable tasks from meeting notes.
+
+CRITICAL RULES:
+1. Return ONLY a valid JSON array
+2. NO markdown fences (no ```)
+3. NO explanation text
+4. Escape all quotes in strings (use \\" for quotes inside text)
+5. Keep details SHORT (max 100 chars)
 
 Format:
-
 [
   {{
-    "title": "",
-    "details": "",
-    "assigned_to": "",
-    "department": "",
+    "title": "Short task title",
+    "details": "Brief details without quotes or newlines",
+    "assigned_to": "Person Name",
+    "department": "Department",
     "deadline": "YYYY-MM-DD or TBD"
   }}
 ]
@@ -442,49 +445,73 @@ Meeting Notes:
                         messages=[
                             {
                                 "role": "system",
-                                "content": "Return ONLY raw JSON array. No explanation. No markdown fences."
+                                "content": "You are a JSON generator. Return ONLY valid JSON arrays. Escape all special characters. No markdown."
                             },
                             {"role": "user", "content": prompt}
                         ],
                         temperature=0.0,
-                        max_tokens=1200
+                        max_tokens=2000  # ✅ Increased for large meetings
                     )
 
                     extracted = resp.choices[0].message.content.strip()
-                    st.code(extracted, language="json")
+                    
+                    # Show raw response for debugging
+                    with st.expander("🔍 View Raw AI Response"):
+                        st.code(extracted, language="text")
 
-                    # ✅ ROBUST JSON CLEANING - handles all variations
+                    # ✅ ROBUST JSON CLEANING
                     import re
                     
                     # Step 1: Remove markdown fences
                     cleaned = extracted.replace("```json", "").replace("```", "").strip()
                     
-                    # Step 2: Extract JSON array using regex (handles extra text)
+                    # Step 2: Extract JSON array using regex
                     json_match = re.search(r'(\[.*\])', cleaned, re.DOTALL)
                     if json_match:
                         cleaned = json_match.group(1)
                     
-                    st.write("🔍 Cleaned JSON (first 200 chars):", cleaned[:200] + "...")
+                    # Step 3: Fix common JSON issues
+                    # Replace smart quotes with regular quotes
+                    cleaned = cleaned.replace('"', '"').replace('"', '"')
+                    cleaned = cleaned.replace("'", "'").replace("'", "'")
+                    
+                    # Remove control characters that break JSON
+                    cleaned = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', cleaned)
+                    
+                    with st.expander("🔍 View Cleaned JSON"):
+                        st.code(cleaned, language="json")
 
                     if not cleaned.strip():
                         st.error("❌ AI did not return any response. Please try again.")
                         st.stop()
 
-                    # Step 3: Parse JSON
+                    # Step 4: Parse JSON with detailed error
                     try:
                         tasks_list = json.loads(cleaned)
                     except json.JSONDecodeError as e:
-                        st.error(f"❌ AI response was not valid JSON: {e}")
+                        st.error(f"❌ JSON Parse Error: {e}")
                         st.code(cleaned, language="text")
-                        st.info("💡 Try again or simplify your meeting notes")
+                        
+                        # Try to help user fix it
+                        st.warning("🔧 **Troubleshooting:**")
+                        st.markdown("""
+- The AI generated invalid JSON (unterminated string or special character)
+- **Solution 1:** Click 'Extract Tasks' again (AI will generate new response)
+- **Solution 2:** Simplify your meeting notes (remove special characters, quotes)
+- **Solution 3:** Copy the cleaned JSON above and fix it manually
+                        """)
                         st.stop()
 
-                    # Step 4: Validate it's a list
+                    # Step 5: Validate it's a list
                     if not isinstance(tasks_list, list):
                         st.error("❌ AI returned JSON but not an array. Expected [...]")
                         st.stop()
+                    
+                    if len(tasks_list) == 0:
+                        st.warning("⚠️ AI extracted 0 tasks. Try adding more action items to your notes.")
+                        st.stop()
 
-                    # Step 5: Display extracted tasks
+                    # Step 6: Display extracted tasks
                     st.success(f"✅ Extracted {len(tasks_list)} tasks successfully!")
                     st.dataframe(pd.DataFrame(tasks_list), use_container_width=True)
                     
@@ -492,17 +519,22 @@ Meeting Notes:
                     st.session_state["ai_tasks"] = tasks_list
 
                 except Exception as e:
-                    st.error(f"❌ AI Error: {e}")
-                    import traceback
-                    st.code(traceback.format_exc(), language="text")
+                    st.error(f"❌ Error: {e}")
+                    with st.expander("🐛 View Full Error Details"):
+                        import traceback
+                        st.code(traceback.format_exc(), language="text")
 
     # ✅ SAVE BUTTON (appears only if tasks were extracted)
     if "ai_tasks" in st.session_state:
-        if st.button("💾 Save All Extracted Tasks"):
+        st.markdown("---")
+        st.markdown(f"**Ready to save {len(st.session_state['ai_tasks'])} tasks**")
+        
+        if st.button("💾 Save All Extracted Tasks", type="primary"):
             saved = 0
             failed = 0
+            errors = []
 
-            for task in st.session_state["ai_tasks"]:
+            for i, task in enumerate(st.session_state["ai_tasks"], 1):
                 try:
                     # Convert deadline string to datetime
                     deadline_str = str(task.get("deadline", "")).strip().upper()
@@ -531,16 +563,20 @@ Meeting Notes:
                         saved += 1
                     else:
                         failed += 1
+                        errors.append(f"Task {i}: Save returned no ID")
 
                 except Exception as e:
                     failed += 1
-                    st.error(f"❌ Failed to save '{task.get('title', 'Unknown')}': {e}")
+                    errors.append(f"Task {i} '{task.get('title', 'Unknown')}': {e}")
 
             # Show results
             if saved > 0:
                 st.success(f"✅ Successfully saved {saved}/{len(st.session_state['ai_tasks'])} tasks!")
             if failed > 0:
                 st.warning(f"⚠️ {failed} tasks failed to save")
+                with st.expander("View Error Details"):
+                    for error in errors:
+                        st.text(error)
 
             # Clear and refresh
             del st.session_state["ai_tasks"]
